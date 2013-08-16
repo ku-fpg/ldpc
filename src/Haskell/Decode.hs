@@ -8,7 +8,7 @@ import Haskell.ArraySig
 import Data.Array.Base (IArray(..),listArray,amap,elems,MArray)
 import Data.Array.Base (thaw,unsafeFreeze)
 import Data.Array.Unboxed ((!),Ix(..))
-import Data.Array.ST (STUArray,readArray,writeArray)
+import Data.Array.ST (STUArray,readArray,writeArray,newArray)
 import Control.Monad.ST (ST,runST)
 
 import Control.Monad (when)
@@ -115,6 +115,7 @@ decoder_mutation maxIterations h lam0
     -- eta[r,c] := min_dagger(eta[r,forall d. d /= c])
     -- lam[c]   := lam[c] + sum(eta[forall r. r,c])
     forEtaRow $ \row -> do
+{-
       -- this is the clever way: take the whole row's min_dagger, then tweak it
       -- at each element
 
@@ -134,12 +135,14 @@ decoder_mutation maxIterations h lam0
               then the_2nd_min else the_min
             etav' = negate $ 0.75*siblingMin
         writeArray eta (row,col) etav'
+-}
 
-{-
       -- this, on the other hand, is the straight-forward way. (We might
       -- optimize to add the_mins array as a loop argument)
 
       the_mins <- newArray (cBase,cTop) 0
+        -- stash the minimums here as we compute them, since we need to retain
+        -- the previous value for the minimum computations
 
       forEtaCol row $ \col -> do
         the_min <- foldlEtaCol 2 row $ \the_min col2 -> do
@@ -151,7 +154,7 @@ decoder_mutation maxIterations h lam0
         the_min <- readArray the_mins col
         let etav' = negate $ 0.75 * the_min
         writeArray eta (row,col) etav'
--}
+
 
         -- add the new eta value to lam
         updateArray lam (colEtaToLam col) $ return . (+etav')
@@ -163,9 +166,10 @@ decoder_mutation maxIterations h lam0
 {-# INLINE min_dagger #-}
 min_dagger x y = signum x * signum y * min (abs x) (abs y)
 
+-- INVARIANT all values in this data-structure are non-negative
 data MD a = ZeroMD | OneMD a | TwoMD a a
 
-{-# INLINE minMD #-}
+-- INVARIANT all arguments non-negative
 minMD ZeroMD x = OneMD x
 minMD (OneMD a) x
   | x < a = TwoMD x a
@@ -174,3 +178,4 @@ minMD (TwoMD a b) x
   | x < a = TwoMD x a
   | x < b = TwoMD a x
   | otherwise = TwoMD a b
+{-# INLINE minMD #-}

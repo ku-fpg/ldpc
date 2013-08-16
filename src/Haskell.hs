@@ -23,7 +23,7 @@ ecc_mutation maxIterations h g noisyness untxBits =
   , encode = return . encoder g
     -- do not transmit untxBits parity bits
   , txRx = fmap (listArray (1,allBits))
-         . fmap (++ replicate untxBits 0.0)
+         . fmap (++ replicate untxBits 0)
          . addNoise gen rate noisyness
          . take frameSize
          . elems
