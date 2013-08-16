@@ -36,9 +36,9 @@ ecc_mutation maxIterations h g noisyness untxBits =
   , showW = show . elems
   , showWBool = map (\b -> if b then '1' else '0') . elems
   }
-  where -- I copied this def from the hfec repo; not sure what "punc" stands
-        -- for, but it looks like it's the full width of the received data
-        rate = (fromIntegral packet_size)/(fromIntegral punc_size)
+  where rate = packet_size / punctured_size
+          where packet_size    = fromIntegral originalBits
+                punctured_size = fromIntegral $ allBits-untxBits
 
         -- NB do not use h here, it may be truncated
         ((rBase,cBase),(rTop,cTop)) = bounds g
@@ -52,6 +52,3 @@ ecc_mutation maxIterations h g noisyness untxBits =
 
         -- the number of bits transmitted
         frameSize = allBits-untxBits
-
-        packet_size = originalBits
-        punc_size = numCols
