@@ -1,7 +1,12 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Haskell.Decode where
+
+import qualified Haskell.Decode.Operations as O
+import Data.Monoid ((<>))
 
 import Haskell.ArraySig
 
@@ -22,18 +27,22 @@ type STM s = STUArray s (Int,Int)
 type STV s = STUArray s Int
 
 updateArray :: (MArray a e m,Ix i) => a i e -> i -> (e -> m e) -> m ()
-updateArray a i f = readArray a i >>= f >>= writeArray a i
+updateArray a i f = do
+  !v <- readArray a i
+  f v >>= writeArray a i
 {-# INLINE updateArray #-}
 
-decoder_mutation :: Int -> M Bool -> V Double -> (Int,V Bool)
-decoder_mutation maxIterations h lam0
+decoder_mutation :: forall d. (d~Double,O.Operations d) =>
+  Int -> M Bool -> V d -> (Int,V Bool)
+decoder_mutation
+  maxIterations h lam0
   | len /= numCol = error "Haskell.Encode.decoder: bad dimensions"
   | otherwise = runST $ do
     lam <- thaw lam0
-    eta <- thaw (amap (const 0) h)
+    eta <- thaw (amap (const O.zero) h)
     n <- go 0 lam eta
     -- unsafeFreeze is safe because lam dies
-    (,) n . amap (>0) . trim <$> unsafeFreeze lam where
+    (,) n . amap (O.zero O.<) . trim <$> unsafeFreeze lam where
 
   !len = rangeSize lamBounds
   lamBounds@(lamBase,_) = bounds lam0
@@ -43,7 +52,7 @@ decoder_mutation maxIterations h lam0
 
   -- numRow is the number of extra parity bits, so drop that many from the
   -- result vector
-  trim :: V Double -> V Double
+  trim :: V d -> V d
   trim = listArray (1,numCol-numRow) . elems
 
   forEta :: Monad m => ((Int,Int) -> m ()) -> m ()
@@ -59,6 +68,12 @@ decoder_mutation maxIterations h lam0
   forEtaRow :: Monad m => (Int -> m ()) -> m ()
   forEtaRow f = mapM_ f $ range (rBase,rTop)
 
+--  foldlEtaRow :: Monad m => acc -> (acc -> Int -> m acc) -> m acc
+--  foldlEtaRow z f = go (range (rBase,rTop)) z where
+--    go !rows !acc = case rows of
+--      [] -> return acc
+--      (row:rows) -> row `seq` f acc row >>= go rows
+
   forEtaCol :: Monad m => Int -> (Int -> m ()) -> m ()
   forEtaCol row f = mapM_ (\col -> when (h!(row,col)) $ f col) $ range (cBase,cTop)
   {-# INLINE forEtaCol #-}
@@ -67,13 +82,13 @@ decoder_mutation maxIterations h lam0
   allEtaRow f = go (range (rBase,rTop)) where
     go !rows = case rows of
       [] -> return True
-      (row:rows) -> f row >>= \b -> if b then go rows else return False
+      (row:rows) -> row `seq` f row >>= \b -> if b then go rows else return False
 
   foldlEtaCol :: Monad m => acc -> Int -> (acc -> Int -> m acc) -> m acc
   foldlEtaCol z row f = go (range (cBase,cTop)) z where
     go !cols !acc = case cols of
       [] -> return acc
-      (col:cols) -> (if h!(row,col) then f acc col else return acc) >>= go cols
+      (col:cols) -> col `seq` (if h!(row,col) then f acc col else return acc) >>= go cols
 
   forLamCol :: Monad m => (Int -> m ()) -> m ()
   forLamCol f = mapM_ f (range lamBounds)
@@ -85,7 +100,7 @@ decoder_mutation maxIterations h lam0
   debug :: IO () -> ST s ()
   debug = const (return ())
 
-  rnd :: Double -> Double
+  rnd :: d -> d
   rnd d = fromIntegral (round (d * 1000.0) :: Int) / 1000.0
   putStr7 "" = putStr "       "
   putStr7 s = pad $ let (pre,post) = break (=='.') s in
@@ -105,15 +120,19 @@ decoder_mutation maxIterations h lam0
 
 --  transpose_h = transpose h -- for use with the multVM implementation of parity
 
-  go :: Int -> STV s Double -> STM s Double -> ST s Int
+  go :: Int -> STV s d -> STM s d -> ST s Int
   go !n !lam !eta
     | n >= maxIterations = return n
     | otherwise = do
+    -- NB we cannot straight-forwardly interleave the parity check with the
+    -- decode iteration because the check depends on the resulting lam value
+    -- that only exists after the whole iteration is complete
+
     -- this is a short-circuiting "all"
     parity <- allEtaRow $ \row -> foldlEtaCol True row $ \parity col ->
       -- /= is xor; start with True so that the result is True if we have
       -- parity (ie an even number of ones)
-      (/= parity) . (>0) <$> readArray lam (colEtaToLam col)
+      (/= parity) . (O.zero O.<) <$> readArray lam (colEtaToLam col)
 
 {- -- this would be a more convenient way of expressing the parity check, but
    -- it allocates a lot and does not short-circuit
@@ -133,7 +152,7 @@ decoder_mutation maxIterations h lam0
 
     -- eta[r,c] := eta[r,c] - lam[c]
     forEta $ \idx@(_,col) ->
-      updateArray eta idx $ \e -> (e-) <$> readArray lam (colEtaToLam col)
+      updateArray eta idx $ \e -> (e O.-) <$> readArray lam (colEtaToLam col)
 
     -- lam[c] := lam0[c]   -- is there a bulk operation for this?
     forLamCol $ \col -> writeArray lam col $ lam0!col
@@ -152,25 +171,25 @@ decoder_mutation maxIterations h lam0
       -- collect the minimum and the next-most minimum in the whole row
       -- NB assumes each row of eta & h has at least two ones
       (minSign,TwoMD the_min the_2nd_min) <- do
-        let snoc (!sign,!md) !x = (sign * signum x,minMD md $ abs x)
-        foldlEtaCol (1,ZeroMD) row $ \mins col -> snoc mins <$> readArray eta (row,col)
+        let snoc (!sign,!md) !x = (sign <> O.signum x,minMD md $ O.abs x)
+        foldlEtaCol (mempty,ZeroMD) row $ \mins col -> snoc mins <$> readArray eta (row,col)
 
       forEtaCol row $ \col -> do
         etav <- readArray eta (row,col)
         -- siblingMin is the min_dagger of this element's same-row siblings. We
         -- recover it from the whole row's TwoMD value by "removing" this
         -- element from the row's minimum.
-        let siblingMin = minSign * signum etav *
-              if abs etav == the_min -- dubious use of (==) Double
+        let siblingMin = (minSign <> O.signum etav) O.*
+              if O.abs etav == the_min -- dubious use of (==) Double
               then the_2nd_min else the_min
-            etav' = negate $ 0.75*siblingMin
+            etav' = O.negate $ O.threeFourths $ siblingMin
         writeArray eta (row,col) etav'
 -}
 
       -- this, on the other hand, is the straight-forward way. (We might
       -- optimize to add the_mins array as a loop argument)
 
-      the_mins <- newArray (cBase,cTop) 0
+      the_mins <- newArray (cBase,cTop) O.zero
         -- stash the minimums here as we compute them, since we need to retain
         -- the previous value for the minimum computations
 
@@ -184,16 +203,16 @@ decoder_mutation maxIterations h lam0
 
       forEtaCol row $ \col -> do
         the_min <- readArray the_mins col
-        let etav' = negate $ 0.75 * the_min
+        let etav' = O.negate $ O.threeFourths the_min
         writeArray eta (row,col) etav'
 
         -- add the new eta value to lam
-        updateArray lam (colEtaToLam col) $ return . (+etav')
+        updateArray lam (colEtaToLam col) $ return . (O.+ etav')
 
     go (n+1) lam eta
 
-{-# INLINE min_dagger #-}
-min_dagger x y = signum x * signum y * min (abs x) (abs y)
+  {-# INLINE min_dagger #-}
+  min_dagger x y = (O.signum x <> O.signum y) O.* O.min (O.abs x) (O.abs y)
 
 -- INVARIANT all values in this data-structure are non-negative
 data MD a = ZeroMD | OneMD a | TwoMD a a
@@ -201,10 +220,10 @@ data MD a = ZeroMD | OneMD a | TwoMD a a
 -- INVARIANT all arguments non-negative
 minMD ZeroMD x = OneMD x
 minMD (OneMD a) x
-  | x < a = TwoMD x a
+  | x O.< a = TwoMD x a
   | otherwise = TwoMD a x
 minMD (TwoMD a b) x
-  | x < a = TwoMD x a
-  | x < b = TwoMD a x
+  | x O.< a = TwoMD x a
+  | x O.< b = TwoMD a x
   | otherwise = TwoMD a b
 {-# INLINE minMD #-}
