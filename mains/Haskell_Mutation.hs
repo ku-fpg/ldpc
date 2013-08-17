@@ -1,9 +1,9 @@
 module Main where
 
 import ECC
-import Haskell
-import Codes.ICFP_Paper
 import Haskell.ArraySig
+import Codes.ICFP_Paper
+import Manifold.Haskell
 
 main :: IO ()
 main = do

@@ -1,4 +1,4 @@
-module Haskell where
+module Manifold.Haskell where
 
 import ECC
 import Noise
