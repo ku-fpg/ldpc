@@ -14,13 +14,16 @@ import Control.Monad.ST (ST,runST)
 import Control.Monad (when)
 import Control.Applicative ((<$>))
 
-import Control.Monad.ST.Unsafe (unsafeIOToST)
+import Data.Maybe (fromJust)
+
+--import Control.Monad.ST.Unsafe (unsafeIOToST)
 
 type STM s = STUArray s (Int,Int)
 type STV s = STUArray s Int
 
 updateArray :: (MArray a e m,Ix i) => a i e -> i -> (e -> m e) -> m ()
 updateArray a i f = readArray a i >>= f >>= writeArray a i
+{-# INLINE updateArray #-}
 
 decoder_mutation :: Int -> M Bool -> V Double -> (Int,V Bool)
 decoder_mutation maxIterations h lam0
@@ -36,7 +39,7 @@ decoder_mutation maxIterations h lam0
   lamBounds@(lamBase,_) = bounds lam0
   !numCol = rangeSize (cBase,cTop)
   !numRow = rangeSize (rBase,rTop)
-  hBounds@((rBase,cBase),(rTop,cTop)) = bounds h
+  ((rBase,cBase),(rTop,cTop)) = bounds h
 
   -- numRow is the number of extra parity bits, so drop that many from the
   -- result vector
@@ -44,13 +47,27 @@ decoder_mutation maxIterations h lam0
   trim = listArray (1,numCol-numRow) . elems
 
   forEta :: Monad m => ((Int,Int) -> m ()) -> m ()
-  forEta f = mapM_ (\idx -> when (h!idx) $ f idx) $ range hBounds
+--  forEta f = mapM_ (\idx -> when (h!idx) $ f idx) $ range (bounds h)
+  -- the range hBounds floats out before it can fuse with mapM_
+
+  forEta f = go rBase cBase where
+    go !row !col
+      | col>cTop = go (row+1) cBase
+      | row>rTop = return ()
+      | otherwise = (when (h!(row,col)) $ f (row,col)) >> go row (col+1)
 
   forEtaRow :: Monad m => (Int -> m ()) -> m ()
   forEtaRow f = mapM_ f $ range (rBase,rTop)
 
   forEtaCol :: Monad m => Int -> (Int -> m ()) -> m ()
   forEtaCol row f = mapM_ (\col -> when (h!(row,col)) $ f col) $ range (cBase,cTop)
+  {-# INLINE forEtaCol #-}
+
+  allEtaRow :: Monad m => (Int -> m Bool) -> m Bool
+  allEtaRow f = go (range (rBase,rTop)) where
+    go !rows = case rows of
+      [] -> return True
+      (row:rows) -> f row >>= \b -> if b then go rows else return False
 
   foldlEtaCol :: Monad m => acc -> Int -> (acc -> Int -> m acc) -> m acc
   foldlEtaCol z row f = go (range (cBase,cTop)) z where
@@ -85,19 +102,28 @@ decoder_mutation maxIterations h lam0
       if not enabled then debug $ putStr7 "" >> putStr " "
       else readArray eta (row,col) >>= \x -> debug $ putStr7 (show (rnd x)) >> putStr " "
 -}
+
+--  transpose_h = transpose h -- for use with the multVM implementation of parity
+
   go :: Int -> STV s Double -> STM s Double -> ST s Int
   go !n !lam !eta
     | n >= maxIterations = return n
     | otherwise = do
-     -- unsafeFreeze is safe because lam' doesn't survive this iteration
+    -- this is a short-circuiting "all"
+    parity <- allEtaRow $ \row -> foldlEtaCol True row $ \parity col ->
+      -- /= is xor; start with True so that the result is True if we have
+      -- parity (ie an even number of ones)
+      (/= parity) . (>0) <$> readArray lam (colEtaToLam col)
+
+{- -- this would be a more convenient way of expressing the parity check, but
+   -- it allocates a lot and does not short-circuit
+
+    -- unsafeFreeze is safe because lam' doesn't survive this iteration
     parity <- unsafeFreeze lam >>= \lam' -> do
       let cHat = amap (>0) lam'
-      let x = elems $ multMV "decode" h cHat
---      unsafeIOToST $ putStr "cHat " >> showV cHat
---      unsafeIOToST $ putStr "x   " >> showV x
-      unsafeIOToST $ putStr "ones in H*cHat " >> (print $ length $ filter id x)
-      return $ not $ or x -- no ones
-
+      return $ not $ or $ -- no ones
+        elems $ multVM "decode" cHat transpose_h
+-}
     if parity then return n else go' n lam eta
 
   {-# INLINE go' #-} -- we want a directly recursive go
@@ -145,16 +171,18 @@ decoder_mutation maxIterations h lam0
         -- the previous value for the minimum computations
 
       forEtaCol row $ \col -> do
-        the_min <- foldlEtaCol 2 row $ \the_min col2 -> do
-          if col == col2 then return the_min
-            else min_dagger the_min <$> readArray eta (row,col2)
-        writeArray (the_mins `asTypeOf` lam) col the_min
+        x <- foldlEtaCol Nothing row $ \the_min col2 ->
+          if col == col2 then return the_min else do
+            !etav <- readArray eta (row,col2)
+            return $ Just $ maybe etav (min_dagger etav) the_min
+        -- NB the fromJust is safe unless there is an empty row in h
+        writeArray (the_mins `asTypeOf` lam) col $ fromJust x
+
 
       forEtaCol row $ \col -> do
         the_min <- readArray the_mins col
         let etav' = negate $ 0.75 * the_min
         writeArray eta (row,col) etav'
-
 
         -- add the new eta value to lam
         updateArray lam (colEtaToLam col) $ return . (+etav')

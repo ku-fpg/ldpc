@@ -17,14 +17,12 @@ import GHC.TypeLits
 
 import Data.Binary (decode)
 
-import System.IO.Unsafe (unsafePerformIO)
-
 h_4096_7168 :: ListMatrix Bool
 h_4096_7168 = expand h_4096_7168_compact
 
 -- this g has a lot more ones in it than h does
-g_4096_7168 :: M Bool
-g_4096_7168 =
+load_g_4096_7168 :: IO (M Bool)
+load_g_4096_7168 =
   -- prefer loading from the decompressed version
   let srcs = concatMap (\(f,p) -> [(f,p),(f,"src/"++p)]) $
              map (second ("Codes/"++)) $
@@ -35,7 +33,7 @@ g_4096_7168 =
       go ((f,path):srcs) = doesFileExist path >>= \b -> if b
         then (decode.f) `fmap` L.readFile path
         else go srcs
-  in unsafePerformIO $ go srcs
+  in go srcs
 
 h_4096_7168_compact :: ListMatrix (Maybe (Fin 256))
 h_4096_7168_compact = fmap cleanup $ listMatrix

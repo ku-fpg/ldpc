@@ -98,8 +98,7 @@ mkECCId frameSize = create >>= \gen -> return $ ECC
 --main :: IO ()
 --main = mainWith (mkECCId 32)
 
-mainWith :: MonadIO m => Integer -> m (ECC m v w d x) -> m ()
-mainWith frames mkECC = do
-  ecc <- mkECC
+mainWith :: MonadIO m => Integer -> ECC m v w d x -> m ()
+mainWith frames ecc = do
   errs <- runECC ecc frames
-  liftIO $ print $ "BER = " ++ show (ber ecc frames errs)
+  liftIO $ putStrLn $ "BER = " ++ show (ber ecc frames errs)

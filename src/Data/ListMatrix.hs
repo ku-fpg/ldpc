@@ -2,7 +2,6 @@
 module Data.ListMatrix where
 
 import Data.List
-import Data.Monoid
 
 listMatrix :: [[a]] -> ListMatrix a
 listMatrix xss
