@@ -16,7 +16,7 @@ import Control.Applicative ((<$>))
 
 import Data.Maybe (fromJust)
 
---import Control.Monad.ST.Unsafe (unsafeIOToST)
+import Control.Monad.ST.Unsafe (unsafeIOToST)
 
 type STM s = STUArray s (Int,Int)
 type STV s = STUArray s Int
@@ -129,7 +129,7 @@ decoder_mutation maxIterations h lam0
   {-# INLINE go' #-} -- we want a directly recursive go
   go' :: Int -> STV s Double -> STM s Double -> ST s Int
   go' !n !lam !eta = do
---    unsafeIOToST $ putStr "iteration " >> print n
+    unsafeIOToST $ putStr "iteration " >> print n
 
     -- eta[r,c] := eta[r,c] - lam[c]
     forEta $ \idx@(_,col) ->
@@ -145,6 +145,10 @@ decoder_mutation maxIterations h lam0
       -- this is the clever way: take the whole row's min_dagger, then tweak it
       -- at each element
 
+      -- it, however, seems bogus at Double (ie we get worse BER than the
+      -- simpler version below when some bits are not transmitted); so it may
+      -- have to wait until quantization
+
       -- collect the minimum and the next-most minimum in the whole row
       -- NB assumes each row of eta & h has at least two ones
       (minSign,TwoMD the_min the_2nd_min) <- do
@@ -153,9 +157,9 @@ decoder_mutation maxIterations h lam0
 
       forEtaCol row $ \col -> do
         etav <- readArray eta (row,col)
-        -- sinblingMin is the min_dagger of this element's same-row
-        -- siblings. We recover it from the whole row's TwoMD value by
-        -- "subtracting" this element.
+        -- siblingMin is the min_dagger of this element's same-row siblings. We
+        -- recover it from the whole row's TwoMD value by "removing" this
+        -- element from the row's minimum.
         let siblingMin = minSign * signum etav *
               if abs etav == the_min -- dubious use of (==) Double
               then the_2nd_min else the_min
@@ -178,7 +182,6 @@ decoder_mutation maxIterations h lam0
         -- NB the fromJust is safe unless there is an empty row in h
         writeArray (the_mins `asTypeOf` lam) col $ fromJust x
 
-
       forEtaCol row $ \col -> do
         the_min <- readArray the_mins col
         let etav' = negate $ 0.75 * the_min
@@ -188,8 +191,6 @@ decoder_mutation maxIterations h lam0
         updateArray lam (colEtaToLam col) $ return . (+etav')
 
     go (n+1) lam eta
-
---  showV = putStrLn . map (\b -> if b then '1' else '0') . elems
 
 {-# INLINE min_dagger #-}
 min_dagger x y = signum x * signum y * min (abs x) (abs y)
