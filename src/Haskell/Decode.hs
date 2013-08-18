@@ -6,8 +6,8 @@
 module Haskell.Decode where
 
 import qualified Haskell.Decode.Operations as O
-import Data.Int (Int16)
 import Data.Monoid ((<>))
+import Data.Int (Int16)
 
 import Haskell.ArraySig
 
@@ -17,10 +17,10 @@ import Data.Array.Unboxed ((!),Ix(..))
 import Data.Array.ST (STUArray,readArray,writeArray,newArray)
 import Control.Monad.ST (ST,runST)
 
+import Data.Maybe (fromJust)
+
 import Control.Monad (when)
 import Control.Applicative ((<$>))
-
-import Data.Maybe (fromJust)
 
 import Control.Monad.ST.Unsafe (unsafeIOToST)
 
@@ -43,13 +43,16 @@ decoder_mutation
     eta <- thaw (amap (const O.zero) h)
     n <- go 0 lam eta
     -- unsafeFreeze is safe because lam dies
-    (,) n . amap (O.zero O.<) . trim <$> unsafeFreeze lam where
+    (,) n . amap isPositive . trim <$> unsafeFreeze lam where
 
   !len = rangeSize lamBounds
   lamBounds@(lamBase,_) = bounds lam0
   !numCol = rangeSize (cBase,cTop)
   !numRow = rangeSize (rBase,rTop)
   ((rBase,cBase),(rTop,cTop)) = bounds h
+
+  isPositive = ((O.zero :: d) O.<)
+  isNegative = (O.< (O.zero :: d))
 
   -- numRow is the number of extra parity bits, so drop that many from the
   -- result vector
@@ -133,7 +136,7 @@ decoder_mutation
     parity <- allEtaRow $ \row -> foldlEtaCol True row $ \parity col ->
       -- /= is xor; start with True so that the result is True if we have
       -- parity (ie an even number of ones)
-      (/= parity) . (O.zero O.<) <$> readArray lam (colEtaToLam col)
+      (/= parity) . isPositive <$> readArray lam (colEtaToLam col)
 
 {- -- this would be a more convenient way of expressing the parity check, but
    -- it allocates a lot and does not short-circuit
@@ -160,60 +163,70 @@ decoder_mutation
 
     -- eta[r,c] := min_dagger(eta[r,forall d. d /= c])
     -- lam[c]   := lam[c] + sum(eta[forall r. r,c])
-    forEtaRow $ \row -> do
-{-
-      -- this is the clever way: take the whole row's min_dagger, then tweak it
-      -- at each element
-
-      -- it, however, seems bogus at Double (ie we get worse BER than the
-      -- simpler version below when some bits are not transmitted); so it may
-      -- have to wait until quantization
-
-      -- collect the minimum and the next-most minimum in the whole row
-      -- NB assumes each row of eta & h has at least two ones
-      (minSign,TwoMD the_min the_2nd_min) <- do
-        let snoc (!sign,!md) !x = (sign <> O.signum x,minMD md $ O.abs x)
-        foldlEtaCol (mempty,ZeroMD) row $ \mins col -> snoc mins <$> readArray eta (row,col)
-
-      forEtaCol row $ \col -> do
-        etav <- readArray eta (row,col)
-        -- siblingMin is the min_dagger of this element's same-row siblings. We
-        -- recover it from the whole row's TwoMD value by "removing" this
-        -- element from the row's minimum.
-        let siblingMin = (minSign <> O.signum etav) O.*
-              if O.abs etav == the_min -- dubious use of (==) Double
-              then the_2nd_min else the_min
-            etav' = O.negate $ O.threeFourths $ siblingMin
-        writeArray eta (row,col) etav'
--}
-
-      -- this, on the other hand, is the straight-forward way. (We might
-      -- optimize to add the_mins array as a loop argument)
-
-      the_mins <- newArray (cBase,cTop) O.zero
-        -- stash the minimums here as we compute them, since we need to retain
-        -- the previous value for the minimum computations
-
-      forEtaCol row $ \col -> do
-        x <- foldlEtaCol Nothing row $ \the_min col2 ->
-          if col == col2 then return the_min else do
-            !etav <- readArray eta (row,col2)
-            return $ Just $ maybe etav (min_dagger etav) the_min
-        -- NB the fromJust is safe unless there is an empty row in h
-        writeArray (the_mins `asTypeOf` lam) col $ fromJust x
-
-      forEtaCol row $ \col -> do
-        the_min <- readArray the_mins col
-        let etav' = O.negate $ O.threeFourths the_min
-        writeArray eta (row,col) etav'
-
-        -- add the new eta value to lam
-        updateArray lam (colEtaToLam col) $ return . (O.+ etav')
+    forEtaRow $ clever lam eta
 
     go (n+1) lam eta
 
-  {-# INLINE min_dagger #-}
-  min_dagger x y = (O.signum x <> O.signum y) O.* O.min (O.abs x) (O.abs y)
+  -- NB clever should be equivalent to simple
+
+  {-# INLINE clever #-}
+  clever :: STV s d -> STM s d -> Int -> ST s ()
+  clever !lam !eta !row = do
+    -- this is the clever way: take the whole row's min_dagger, then tweak it
+    -- at each element
+
+    -- collect the minimum and the next-most minimum in the whole row
+    -- NB assumes each row of eta & h has at least two ones
+    (minSign,TwoMD the_min the_2nd_min) <- do
+        let snoc (!sign,!md) !x = (sign /= isNegative x,minMD md $ O.abs x)
+        foldlEtaCol (False {-is not negative-},ZeroMD) row $ \mins col ->
+          snoc mins <$> readArray eta (row,col)
+
+    forEtaCol row $ \col -> do
+      etav <- readArray eta (row,col)
+      -- siblingMin is the min_dagger of this element's same-row siblings. We
+      -- recover it from the whole row's TwoMD value by "removing" this
+      -- element from the row's minimum.
+      let etaSign = isNegative etav
+          siblingSign = minSign /= etaSign
+          siblingAbs = if O.abs etav == the_min -- dubious use of (==) if d~Double
+                       then the_2nd_min else the_min
+          siblingMin = if siblingSign then O.negate siblingAbs else siblingAbs
+          etav' = O.negate $ O.threeFourths siblingMin
+
+      writeArray eta (row,col) etav'
+
+      -- add the new eta value to lam
+      updateArray lam (colEtaToLam col) $ return . (O.+ etav')
+
+  {-# INLINE simple #-}
+  simple :: STV s d -> STM s d -> Int -> ST s ()
+  simple !lam !eta !row = do
+    -- this, on the other hand, is the straight-forward way. (We could
+    -- optimize by adding the_mins array as a loop argument.)
+
+    the_mins <- newArray (cBase,cTop) O.zero
+      -- stash the minimums here as we compute them, since we need to retain
+      -- the previous value for the minimum computations
+    forEtaCol row $ \col -> do
+      x <- foldlEtaCol Nothing row $ \the_min col2 ->
+        if col == col2 then return the_min else do
+          !etav <- readArray eta (row,col2)
+          return $ Just $ maybe etav (min_dagger etav) the_min
+      -- NB the fromJust is safe unless there is an empty row in h
+      writeArray (the_mins `asTypeOf` lam) col $ fromJust x
+
+    forEtaCol row $ \col -> do
+      the_min <- readArray the_mins col
+      let etav' = O.negate $ O.threeFourths the_min
+      writeArray eta (row,col) etav'
+
+      -- add the new eta value to lam
+      updateArray lam (colEtaToLam col) $ return . (O.+ etav')
+
+    where {-# INLINE min_dagger #-}
+          min_dagger x y = (O.signum x <> O.signum y) O.* O.min (O.abs x) (O.abs y)
+
 
 -- INVARIANT all values in this data-structure are non-negative
 data MD a = ZeroMD | OneMD a | TwoMD a a
