@@ -6,6 +6,7 @@
 module Haskell.Decode where
 
 import qualified Haskell.Decode.Operations as O
+import Data.Int (Int16)
 import Data.Monoid ((<>))
 
 import Haskell.ArraySig
@@ -32,7 +33,7 @@ updateArray a i f = do
   f v >>= writeArray a i
 {-# INLINE updateArray #-}
 
-decoder_mutation :: forall d. (d~Double,O.Operations d) =>
+decoder_mutation :: forall d. (d~Int16,O.Operations d) =>
   Int -> M Bool -> V d -> (Int,V Bool)
 decoder_mutation
   maxIterations h lam0
@@ -146,7 +147,7 @@ decoder_mutation
     if parity then return n else go' n lam eta
 
   {-# INLINE go' #-} -- we want a directly recursive go
-  go' :: Int -> STV s Double -> STM s Double -> ST s Int
+  go' :: Int -> STV s d -> STM s d -> ST s Int
   go' !n !lam !eta = do
     unsafeIOToST $ putStr "iteration " >> print n
 

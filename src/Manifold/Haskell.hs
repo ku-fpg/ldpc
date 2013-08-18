@@ -1,5 +1,7 @@
 module Manifold.Haskell where
 
+import Data.Int (Int32,Int16)
+
 import ECC
 import Noise
 
@@ -15,14 +17,36 @@ import Control.Monad.Trans (MonadIO(..))
 
 import Control.Applicative ((<$>))
 
+cnv :: Double -> Int
+-- NB (minBound :: Int64) == fromEnum (toEnum (maxBound :: Int64) :: Double)
+--
+-- NB How to best choose the divisor?
+cnv d | d > 0     = fromEnum (    d * toEnum (maxBound `div` 16))
+      | otherwise = fromEnum (abs d * toEnum (minBound `div` 16))
+
+cnv32 :: Double -> Int32
+-- NB How to best choose the divisor?
+cnv32 d | d > 0     = toEnum $ fromEnum $
+            d * (toEnum $ fromEnum (maxBound `div` 8 :: Int32))
+      | otherwise = toEnum $ fromEnum $
+        abs d * (toEnum $ fromEnum (minBound `div` 8 :: Int32))
+
+cnv16 :: Double -> Int16
+-- NB How to best choose the divisor?
+cnv16 d | d > 0     = toEnum $ fromEnum $
+            d * (toEnum $ fromEnum (maxBound `div` 8 :: Int16))
+      | otherwise = toEnum $ fromEnum $
+        abs d * (toEnum $ fromEnum (minBound `div` 8 :: Int16))
+
 ecc_mutation :: (Functor m,PrimMonad m,MonadIO m) =>
-  Int -> M Bool -> M Bool -> Noisyness -> Int -> m (ECC m V V Double Int)
+  Int -> M Bool -> M Bool -> Noisyness -> Int -> m (ECC m V V Int16 Int)
 ecc_mutation maxIterations h g noisyness untxBits =
   create >>= \gen -> return $ ECC
   { generate = listArray (1,originalBits) <$> generateList gen originalBits
   , encode = return . encoder g
     -- do not transmit untxBits parity bits
   , txRx = fmap (listArray (1,allBits))
+         . fmap (map cnv16)
          . fmap (++ replicate untxBits 0)
          . addNoise gen rate noisyness
          . take frameSize
