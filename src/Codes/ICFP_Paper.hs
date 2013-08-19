@@ -6,34 +6,19 @@ import Haskell.ArraySig (M)
 import Data.Sized.Fin
 import Data.ListMatrix
 
-import System.Directory (doesFileExist)
-import Codec.Compression.BZip (decompress)
-import qualified Data.ByteString.Lazy as L
-
-import Data.List (intercalate)
-import Control.Arrow (second)
-
 import GHC.TypeLits
 
-import Data.Binary (decode)
+import Data.Binary (decodeFile)
+import Data.Binary.Bytewise (unBytewise)
+
+import Control.Applicative ((<$>))
 
 h_4096_7168 :: ListMatrix Bool
 h_4096_7168 = expand h_4096_7168_compact
 
 -- this g has a lot more ones in it than h does
 load_g_4096_7168 :: IO (M Bool)
-load_g_4096_7168 =
-  -- prefer loading from the decompressed version
-  let srcs = concatMap (\(f,p) -> [(f,p),(f,"src/"++p)]) $
-             map (second ("Codes/"++)) $
-             [(id,"g_4096_7168.bin")
-             ,(decompress,"g_4096_7168.bin.bz2")
-             ]
-      go [] = error $ "hacky load of g_4096_7168 failed, could find none of " ++ intercalate " " (map snd srcs)
-      go ((f,path):srcs) = doesFileExist path >>= \b -> if b
-        then (decode.f) `fmap` L.readFile path
-        else go srcs
-  in go srcs
+load_g_4096_7168 = unBytewise <$> decodeFile "g_4096_7168.bytes"
 
 h_4096_7168_compact :: ListMatrix (Maybe (Fin 256))
 h_4096_7168_compact = fmap cleanup $ listMatrix

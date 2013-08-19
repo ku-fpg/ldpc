@@ -51,8 +51,8 @@ decoder_mutation
   !numRow = rangeSize (rBase,rTop)
   ((rBase,cBase),(rTop,cTop)) = bounds h
 
-  isPositive = ((O.zero :: d) O.<)
-  isNegative = (O.< (O.zero :: d))
+  isPositive = (O.zero O.<) :: d -> Bool
+  isNegative = (O.< O.zero) :: d -> Bool
 
   -- numRow is the number of extra parity bits, so drop that many from the
   -- result vector
@@ -167,7 +167,7 @@ decoder_mutation
 
     go (n+1) lam eta
 
-  -- NB clever should be equivalent to simple
+  -- NB @clever@ should be equivalent to @simple@
 
   {-# INLINE clever #-}
   clever :: STV s d -> STM s d -> Int -> ST s ()
