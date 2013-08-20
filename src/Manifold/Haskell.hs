@@ -52,7 +52,7 @@ ecc_mutation maxIterations h g noisyness untxBits =
          . take frameSize
          . elems
   , decode = return . decoder_mutation maxIterations h
-  , check = \x y -> checkList (elems x) (elems y)
+  , check = \x y -> checkList (elems x) (take originalBits $ elems y)
   , ber = berForFramesize frameSize
   , debug = liftIO . putStrLn
   , showX = \i -> Just $ "iterations " ++ show i

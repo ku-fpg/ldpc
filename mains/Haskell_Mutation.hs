@@ -13,4 +13,4 @@ main = do
   g <- Codes.ICFP_Paper.load_g_4096_7168
   g `seq` putStrLn "Evaluated g."
   ecc <- ecc_mutation 20 h g (Just 3) 1024
-  mainWith 100 $ ecc{debug=noDebug}
+  mainWith (+) 0 100 $ ecc{debug=noDebug}

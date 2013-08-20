@@ -27,13 +27,13 @@ noDebug :: Monad m => String -> m ()
 noDebug _ = return ()
 
 -- returns the number of bits transmitted, and bits recieved intact.
-runECC :: Monad m => ECC m v w d x -> Integer -> m Integer
-runECC ecc count = run 0 0
+runECC :: Monad m => ECC m v w d x -> (a -> x -> a) -> a -> Integer -> m (a,Integer)
+runECC ecc combine zero count = run 0 0 zero
   where
-    run !n !errs
+    run !n !errs !acc
      | n == count = do
         debug ecc $ "returning " ++ show errs
-        return errs
+        return (acc,errs)
      | otherwise = do
         debug ecc $ "starting packet " ++ show n
 
@@ -52,7 +52,7 @@ runECC ecc count = run 0 0
 
         bitErrors <- check ecc code0 code2
         debug ecc $ "errors " ++ show bitErrors
-        run (n+1) (errs + toInteger bitErrors)
+        run (n+1) (errs + toInteger bitErrors) (combine acc extra_info)
 
 
 -- Utilties for building the ECC
@@ -98,7 +98,8 @@ mkECCId frameSize = create >>= \gen -> return $ ECC
 --main :: IO ()
 --main = mainWith (mkECCId 32)
 
-mainWith :: MonadIO m => Integer -> ECC m v w d x -> m ()
-mainWith frames ecc = do
-  errs <- runECC ecc frames
+mainWith :: (MonadIO m,Show a) => (a -> x -> a) -> a -> Integer -> ECC m v w d x -> m ()
+mainWith combine zero frames ecc = do
+  (a,errs) <- runECC ecc combine zero frames
+  liftIO $ print a
   liftIO $ putStrLn $ "BER = " ++ show (ber ecc frames errs)

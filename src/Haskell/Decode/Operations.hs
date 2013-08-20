@@ -10,7 +10,7 @@ import Data.Int (Int32,Int16)
 import qualified Prelude as P
 import Prelude hiding (Num(..),Ord(..))
 
-import Data.Monoid (Monoid(..))
+import Data.Monoid (Monoid(..),(<>))
 
 type family Signum d :: *
 
@@ -133,3 +133,24 @@ instance Operations Int16 where
           else z
     where z = x P.- y
   SignumInt16 s * d = s P.* d
+
+
+
+{-# INLINE min_dagger #-}
+min_dagger :: Operations d => d -> d -> d
+min_dagger x y = (signum x <> signum y) * min (abs x) (abs y)
+
+
+-- INVARIANT all values in this data-structure are non-negative
+data MD a = ZeroMD | OneMD a | TwoMD a a
+
+-- INVARIANT all arguments non-negative
+minMD ZeroMD x = OneMD x
+minMD (OneMD a) x
+  | x < a = TwoMD x a
+  | otherwise = TwoMD a x
+minMD (TwoMD a b) x
+  | x < a = TwoMD x a
+  | x < b = TwoMD a x
+  | otherwise = TwoMD a b
+{-# INLINE minMD #-}

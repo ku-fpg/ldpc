@@ -3,6 +3,9 @@ module Data.ListMatrix where
 
 import Data.List
 
+toList :: ListMatrix a -> [a]
+toList (ListMatrix rows) = concat rows
+
 listMatrix :: [[a]] -> ListMatrix a
 listMatrix xss
   | or (zipWith (/=) (map length xss) (tail (map length xss)))
