@@ -3,6 +3,12 @@ ldpc
 
 LDPC case study for HERMIT project (2).
 
+Executables
+===========
+
+dist/build/haskell_mutation/haskell_mutation
+dist/build/haskell_repa/haskell_repa
+
 dist/build/haskell_mutation/haskell_mutation
 ============================================
 

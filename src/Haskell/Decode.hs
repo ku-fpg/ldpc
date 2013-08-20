@@ -146,7 +146,7 @@ decoder_mutation
   {-# INLINE go' #-} -- we want a directly recursive go
   go' :: Int -> STV s D -> STM s D -> ST s Int
   go' !n !lam !eta = do
-    unsafeIOToST $ putStr "iteration " >> print n
+--    unsafeIOToST $ putStr "iteration " >> print n
 
     -- eta[r,c] := eta[r,c] - lam[c]
     forEta $ \idx@(_,col) ->

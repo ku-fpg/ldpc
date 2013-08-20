@@ -3,23 +3,33 @@
 
 name:                ldpc
 version:             0.1.0.0
--- synopsis:            
--- description:         
+-- synopsis:
+-- description:
 license:             BSD3
 license-file:        LICENSE
 author:              Andy Gill, Nicolas Frisby
 maintainer:          Andy Gill <andygill@ku.edu>
--- copyright:           
+-- copyright:
 category:            Codec
 build-type:          Simple
 cabal-version:       >=1.8
 
 library
-  exposed-modules:     ECC, Manifold.Haskell, Noise, Codes.ICFP_Paper, Codes.Wikipedia, Data.ListMatrix, Haskell.ArraySig, Haskell.Decode, Haskell.Decode.Operations, Haskell.Encode, Manifold.Wikipedia, Data.Binary.Bytewise
-  -- other-modules:       
-  build-depends:       base ==4.6.*, mwc-random ==0.12.*, primitive ==0.5.*, mtl ==2.1.*, array ==0.4.*, sized-types ==0.4.*, directory ==1.2.*, bzlib ==0.5.*, bytestring ==0.10.*, binary ==0.7.*, ghc-prim ==0.3.*
+  exposed-modules:     ECC, Noise, Codes.ICFP_Paper, Codes.Wikipedia,
+                       Data.Binary.Bytewise,
+                       Data.ListMatrix, Haskell.ArraySig,
+                       Haskell.Decode.Operations,
+                       Haskell.Decode, Haskell.Encode,
+                       Haskell.Repa,
+                       Manifold.Haskell, Manifold.Repa
+  -- other-modules:
+  build-depends:       base ==4.6.*, mwc-random ==0.12.*, primitive ==0.5.*, mtl ==2.1.*, array ==0.4.*, sized-types ==0.4.*, directory ==1.2.*, bzlib ==0.5.*, bytestring ==0.10.*, binary ==0.7.*, ghc-prim ==0.3.*, repa ==3.2.*
   hs-source-dirs:      src mains
 
 executable haskell_mutation
   build-depends:       base ==4.6.*, ldpc==0.1.0.0
   main-is: mains/Haskell_Mutation.hs
+
+executable haskell_repa
+  build-depends:       base ==4.6.*, ldpc==0.1.0.0
+  main-is: mains/Haskell_Repa.hs
