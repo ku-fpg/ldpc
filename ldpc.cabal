@@ -17,9 +17,10 @@ cabal-version:       >=1.8
 library
   exposed-modules:     ECC, Noise, Codes.ICFP_Paper, Codes.Wikipedia,
                        Data.Binary.Bytewise,
+                       Data.Matrix.CRS,
                        Data.ListMatrix, Haskell.ArraySig,
                        Haskell.Decode.Operations,
-                       Haskell.Decode, Haskell.Encode,
+                       Haskell.Decode, Haskell.Encode, Haskell.DecodeCRS,
                        Haskell.Repa,
                        Manifold.Haskell, Manifold.Repa
   -- other-modules:

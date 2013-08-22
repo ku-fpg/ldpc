@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns #-}
+
 module Manifold.Haskell where
 
 import Data.Int (Int32,Int16)
@@ -10,6 +12,9 @@ import Data.Array.Base (listArray,elems,bounds)
 import Data.Array (rangeSize)
 import Haskell.Encode (encoder)
 import Haskell.Decode (decoder_mutation)
+
+import qualified Haskell.DecodeCRS as CRS
+import Data.Matrix.CRS
 
 import System.Random.MWC (create)
 import Control.Monad.Primitive (PrimMonad)
@@ -76,3 +81,10 @@ ecc_mutation maxIterations h g noisyness untxBits =
 
         -- the number of bits transmitted
         frameSize = allBits-untxBits
+
+ecc_mutation_sparse :: (Functor m,PrimMonad m,MonadIO m) =>
+  Int -> M Bool -> M Bool -> Noisyness -> Int -> m (ECC m V V Int16 Int)
+ecc_mutation_sparse maxIterations h g noisyness untxBits =
+  (\ecc -> ecc{decode = return . CRS.decoder_mutation maxIterations sparse_h}) <$>
+  ecc_mutation maxIterations h g noisyness untxBits
+  where !sparse_h = mkUCRS False h

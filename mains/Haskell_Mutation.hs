@@ -12,5 +12,5 @@ main = do
   h `seq` putStrLn "Evaluated h."
   g <- Codes.ICFP_Paper.load_g_4096_7168
   g `seq` putStrLn "Evaluated g."
-  ecc <- ecc_mutation 20 h g (Just 3) 1024
-  mainWith (\i x -> i + toInteger x) (0 :: Integer) 100 $ ecc{debug=noDebug}
+  ecc <- ecc_mutation_sparse 20 h g (Just 3) 1024
+  mainWith (\i x -> i + toInteger x) (0 :: Integer) 1 $ ecc{debug=noDebug}
