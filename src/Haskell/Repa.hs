@@ -73,12 +73,12 @@ step h lam0 eta lam = (computeS eta'',computeS lam') where
           foldS O.min_dagger maxBound $
           -- replace each element with its row-siblings
           explode $
-          -- sparsity: replace undefined by maxBound
+          -- sparsity: replace sparse matrix 'zero' by maxBound
           R.zipWith (\b e -> if b then e else maxBound) h $
           eta'
 
   lam' = R.zipWith (O.+) lam0 $
          foldS (O.+) O.zero . transpose $ -- add up the columns
-         -- sparsity: replace undefined by 0
+         -- sparsity: replace sparse matrix 'zero' by maxBound
          R.zipWith (\b e -> if b then e else O.zero) h $
          eta''
