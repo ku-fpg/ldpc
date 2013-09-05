@@ -1,87 +1,124 @@
-{-# LANGUAGE BangPatterns,RankNTypes #-}
+{-# LANGUAGE BangPatterns,RankNTypes, GeneralizedNewtypeDeriving, ScopedTypeVariables #-}
 -- Simple tester for LDPC-lie things
 module ECC where
 
 import System.Random.MWC
+import Data.Bit
+import Control.Monad
 import Control.Monad.Primitive (PrimMonad, PrimState)
 import Control.Monad.Trans (MonadIO(liftIO))
+import Control.Concurrent
+import Data.Word
+import qualified Data.Vector.Unboxed  as U
+import System.Random.MWC.Distributions
 
 type FrameSize = Int
 
+-- By using this, you are restricting what IO operations you commit to do.
+newtype EccM a = EccM { runEccM :: GenIO -> IO a }
+
+instance Monad EccM where
+    return a = EccM $ \ gen -> return a
+    EccM m >>= k = EccM $ \ gen -> do r <- m gen
+                                      runEccM (k r) gen
+
+uniformEccM :: Variate a => EccM a
+uniformEccM = EccM uniform
+
+standardEccM :: EccM Double
+standardEccM = EccM standard
+
 -- basic structure of an error-checking code
-data ECC m v w d x = ECC
-     { generate  ::                        m (v Bool)
-     , encode    :: v Bool		-> m (w Bool)
-     , txRx      :: w Bool		-> m (w d)
-     , decode    :: w d 	        -> m (x,v Bool) -- ^ (extra info,result)
-     , check     :: v Bool -> v Bool    -> m Int
-     , ber       :: Integer -> Integer  -> Double               -- ^ given this many frames, and this number of bit errors, what is the BER?
-     , debug     :: String              -> m ()
-     , showX     :: x -> Maybe String
-     , showV     :: v Bool -> String
-     , showW     :: w d -> String
-     , showWBool :: w Bool -> String
+data ECC = ECC
+     { encode          :: [Bit]       	-> EccM [Bit]
+     , txRx            :: [Bit]         -> EccM [Double]
+     , decode          :: [Double] 	-> EccM [Bit]         -- ^ (extra info,result)
+     , announce        :: Int -> Double -> IO ()              -- ^ give verbal result, passing errors and (computed) BER.
+     , message_length  :: Int           -- length of v
+     , codeword_length :: Int           -- length of w
+     , verbose         :: Int           -- standard 0 | 1 | 2 | 3 scale:
+                                        --   0 = nothing, 1 = on message per message,
+                                        --   2 = one message per operation
+                                        --   3 = show everything
      }
 
-noDebug :: Monad m => String -> m ()
-noDebug _ = return ()
+-- Takes the starting seed, the number of messages, and the encode/decode pair (inside ECC),
+-- and returns the BER.
+runECC :: Maybe Word32 -> Integer -> ECC -> IO Double
+runECC seed count ecc = do
+  gen :: GenIO <- case seed of
+                    Just s -> initialize (U.singleton s)
+                    Nothing -> withSystemRandom $ asGenIO return
+  let debug n msg | n <= verbose ecc = putStrLn msg
+                  | otherwise        = return ()
 
--- returns the number of bits transmitted, and bits recieved intact.
-runECC :: Monad m => ECC m v w d x -> (a -> x -> a) -> a -> Integer -> m (a,Integer)
-runECC ecc combine zero count = run 0 0 zero
-  where
-    run !n !errs !acc
-     | n == count = do
-        debug ecc $ "returning " ++ show errs
-        return (acc,errs)
-     | otherwise = do
-        debug ecc $ "starting packet " ++ show n
+  let run !n !errs !ber
+       | n == count = do
+        debug 2 $ "done, BER = " ++ show ber
+        return ber
 
-        code0     <- generate ecc
-        debug ecc $ showV ecc code0
+       | otherwise = do
+        debug 2 $ "starting message " ++ show n
 
-        code1     <- encode ecc code0
-        debug ecc $ showWBool ecc code1
+        mess0  <- liftM (fmap setBit) $ sequence [ uniform gen | _ <- [1..message_length ecc]]
+        debug 2 $ "generated message " ++ show n
+        debug 3 $ show mess0
 
-        rx        <- txRx ecc code1
-        debug ecc $ showW ecc rx
+        code0     <- runEccM (encode ecc mess0) gen
+        debug 2 $ "encoded message " ++ show n
+        debug 3 $ show code0
 
-        (extra_info,code2)     <- decode ecc rx
-        maybe (return ()) (debug ecc) $ showX ecc extra_info
-        debug ecc $ showV ecc code2
+        rx <- runEccM (txRx ecc code0) gen
+        debug 2 $ "tx/rx'd message " ++ show n
+        debug 3 $ show rx
 
-        bitErrors <- check ecc code0 code2
-        debug ecc $ "errors " ++ show bitErrors
-        run (n+1) (errs + toInteger bitErrors) (combine acc extra_info)
+        code1 <- runEccM (decode ecc rx) gen
+
+        when (length code0 /= length code1) $ do
+                error $ "before and after codeword different lengths" ++ show (length code0,length code1)
 
 
+        let bitErrorCount = length [ () | (b,a) <- zip code0 code1, a /= b ]
+        debug 1 $ show bitErrorCount ++ " bit errors in message " ++ show n
+
+        let errs' = errs + bitErrorCount
+        let ber' = fromIntegral errs' / (fromIntegral (message_length ecc) * (fromIntegral n))
+
+        announce ecc bitErrorCount ber'
+        debug 2 $ "completed message " ++ show n ++ ", BER = " ++ show ber'
+
+        run (n+1) errs' ber'
+
+  run 0 0 0.0
+
+{-
 -- Utilties for building the ECC
-generateList :: (PrimMonad m) => Gen (PrimState m) -> Int -> m [Bool]
-generateList gen sz = sequence [ uniform gen | _ <- [1..sz]]
+generateList :: (PrimMonad m) => Gen (PrimState m) -> Int -> m [Bit]
+generateList gen sz = liftM (fmap setBit) $ sequence [ uniform gen | _ <- [1..sz]]
 
-encodeId :: (Monad m) => v Bool -> m (v Bool)
+encodeId :: (Monad m) => v Bit -> m (v Bit)
 encodeId = return
 
-decodeId :: (Monad m, Functor v) => v Double -> m ((),v Bool)
-decodeId = return . (,) () . fmap (>= 0)
+decodeId :: (Monad m, Functor v, Ord d, Num d) => v d -> m ((),v Bit)
+decodeId = return . (,) () . fmap setBit . fmap (>= 0)
 
-checkList :: (Monad m) => [Bool] -> [Bool] -> m Int
+checkList :: (Monad m) => [Bit] -> [Bit] -> m Int
 checkList xs ys
   | lx /= ly = error $ "internal error in checkList: " ++ show lx ++ " " ++ show ly
   | otherwise = return $ sum $ zipWith (\ x y -> if x == y then 0 else 1) xs ys
   where lx = length xs; ly = length ys
 
-txRxId :: (Monad m, Functor w) => w Bool -> m (w Double)
-txRxId = return . fmap (\ x -> if x then 1 else -1)
+txRxId :: (Monad m, Functor w, Num d) => w Bit -> m (w d)
+txRxId = return . fmap (\ x -> if getBit x then 1 else -1)
 
 berForFramesize :: Int -> (Integer -> Integer -> Double)
 berForFramesize frameSize frames bitErrors =
   fromIntegral bitErrors / (fromIntegral frameSize * fromIntegral frames)
 
-mkECCId ::
+idECC ::
   (PrimMonad m, MonadIO m) =>
   Int -> m (ECC m [] [] Double ())
-mkECCId frameSize = create >>= \gen -> return $ ECC
+idECC frameSize = create >>= \gen -> return $ ECC
   { generate = generateList gen frameSize
   , encode = encodeId
   , txRx   = txRxId
@@ -94,12 +131,31 @@ mkECCId frameSize = create >>= \gen -> return $ ECC
   , showW = show
   , showWBool = show
   }
+-}
 
---main :: IO ()
---main = mainWith (mkECCId 32)
+defaultECC :: ECC
+defaultECC = ECC
+        { encode   = return
+        , txRx     = return . fmap (\ x -> if getBit x then -1 else -1)
+        , decode   = return . fmap setBit . fmap (>= 0)
+        , announce = \ _ ber -> putStrLn $ "BER: " ++ show ber
+        , message_length  = 16
+        , codeword_length = 16
+        , verbose = 0
+        }
 
-mainWith :: (MonadIO m,Show a) => (a -> x -> a) -> a -> Integer -> ECC m v w d x -> m ()
-mainWith combine zero frames ecc = do
-  (a,errs) <- runECC ecc combine zero frames
-  liftIO $ print a
-  liftIO $ putStrLn $ "BER = " ++ show (ber ecc frames errs)
+txRx_EbN0 :: Rational -> Double -> [Bit] -> EccM [Double]
+txRx_EbN0 rate ebnoDB xs = do
+        rs :: [Double]  <- sequence [ standardEccM | _ <- [1..length xs] ]
+        return $ zipWith (+) (fmap (* sqrt var) rs) $ fmap (\ x -> if getBit x then 1 else -1) $ xs
+  where
+         var = 1/(2 * fromRational rate * (10 **(ebnoDB/10)))
+
+main :: IO ()
+main = do
+        xs <- sequence [ runECC Nothing 100 defaultECC { txRx = txRx_EbN0 (2/3) ebN0 }
+                       | ebN0 <- [0..5]
+                       ]
+        print xs
+        return ()
+
