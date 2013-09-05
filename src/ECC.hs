@@ -5,7 +5,7 @@ module ECC where
 import System.Random.MWC
 import Data.Bit
 import Control.Monad
-import Control.Monad.Primitive (PrimMonad, PrimState)
+--import Control.Monad.Primitive (PrimMonad, PrimState)
 import Control.Monad.Trans (MonadIO(liftIO))
 import Control.Concurrent
 import Data.Word
