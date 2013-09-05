@@ -12,7 +12,9 @@ import Data.Word
 import qualified Data.Vector.Unboxed  as U
 import System.Random.MWC.Distributions
 
-type FrameSize = Int
+type MessageSize = Int          -- the size of the message
+type CodewordSize = Int         -- the size of the message + parity bits
+type Rate = Rational
 
 -- By using this, you are restricting what IO operations you commit to do.
 newtype EccM a = EccM { runEccM :: GenIO -> IO a }
@@ -34,8 +36,8 @@ data ECC = ECC
      , txRx            :: [Bit]         -> EccM [Double]
      , decode          :: [Double] 	-> EccM [Bit]         -- ^ (extra info,result)
      , announce        :: Int -> Double -> IO ()              -- ^ give verbal result, passing errors and (computed) BER.
-     , message_length  :: Int           -- length of v
-     , codeword_length :: Int           -- length of w
+     , message_length  :: MessageSize   -- length of v
+     , codeword_length :: CodewordSize  -- length of w
      , verbose         :: Int           -- standard 0 | 1 | 2 | 3 scale:
                                         --   0 = nothing, 1 = on message per message,
                                         --   2 = one message per operation
@@ -72,17 +74,16 @@ runECC seed count ecc = do
         debug 2 $ "tx/rx'd message " ++ show n
         debug 3 $ show rx
 
-        code1 <- runEccM (decode ecc rx) gen
+        mess1 <- runEccM (decode ecc rx) gen
 
-        when (length code0 /= length code1) $ do
-                error $ "before and after codeword different lengths" ++ show (length code0,length code1)
+        when (length mess0 /= length mess1) $ do
+                error $ "before and after codeword different lengths" ++ show (length mess0,length mess1)
 
-
-        let bitErrorCount = length [ () | (b,a) <- zip code0 code1, a /= b ]
+        let bitErrorCount = length [ () | (b,a) <- zip mess0 mess1, a /= b ]
         debug 1 $ show bitErrorCount ++ " bit errors in message " ++ show n
 
         let errs' = errs + bitErrorCount
-        let ber' = fromIntegral errs' / (fromIntegral (message_length ecc) * (fromIntegral n))
+        let ber' = fromIntegral errs' / (fromIntegral (message_length ecc) * (fromIntegral (n + 1)))
 
         announce ecc bitErrorCount ber'
         debug 2 $ "completed message " ++ show n ++ ", BER = " ++ show ber'
@@ -136,7 +137,7 @@ idECC frameSize = create >>= \gen -> return $ ECC
 defaultECC :: ECC
 defaultECC = ECC
         { encode   = return
-        , txRx     = return . fmap (\ x -> if getBit x then -1 else -1)
+        , txRx     = return . fmap (\ x -> if getBit x then 1 else -1)
         , decode   = return . fmap setBit . fmap (>= 0)
         , announce = \ _ ber -> putStrLn $ "BER: " ++ show ber
         , message_length  = 16
@@ -144,18 +145,26 @@ defaultECC = ECC
         , verbose = 0
         }
 
-txRx_EbN0 :: Rational -> Double -> [Bit] -> EccM [Double]
-txRx_EbN0 rate ebnoDB xs = do
+txRx_EbN0 :: Double -> ECC -> ECC -- [Bit] -> EccM [Double]
+txRx_EbN0 ebnoDB ecc = ecc { txRx = \ xs -> do
         rs :: [Double]  <- sequence [ standardEccM | _ <- [1..length xs] ]
-        return $ zipWith (+) (fmap (* sqrt var) rs) $ fmap (\ x -> if getBit x then 1 else -1) $ xs
+        return $ zipWith (+) (fmap (* sqrt var) rs) $ fmap (\ x -> if getBit x then 1 else -1) $ xs }
   where
+         rate = rateOf ecc
          var = 1/(2 * fromRational rate * (10 **(ebnoDB/10)))
 
+rateOf :: ECC -> Rational
+rateOf ecc = fromIntegral (message_length ecc) / fromIntegral (codeword_length ecc)
+
+{-
 main :: IO ()
 main = do
-        xs <- sequence [ runECC Nothing 100 defaultECC { txRx = txRx_EbN0 (2/3) ebN0 }
-                       | ebN0 <- [0..5]
+        let ebN0s = [0,2..8]
+        xs <- sequence [ do ber <- runECC Nothing 100000 defaultECC { txRx = txRx_EbN0 1 ebN0 , announce = \ _ _ -> return () }
+                            print $ ber * 16 * 100000
+                            return ber
+                       | ebN0 <- ebN0s
                        ]
-        print xs
+        putStrLn $ unlines [ show (v,n) | (v,n) <- zip ebN0s xs ]
         return ()
-
+-}
