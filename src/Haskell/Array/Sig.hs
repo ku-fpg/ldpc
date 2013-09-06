@@ -1,6 +1,7 @@
 module Haskell.Array.Sig where
 
 import Data.Array
+import Data.List
 
 type V a = Array Int a
 type M a = Array (Int,Int) a
@@ -58,11 +59,18 @@ fromMatrix = (:[]) . elems
 data ShowM a = ShowM (M a)
 
 instance Show a => Show (ShowM a) where
-   show (ShowM a) = unlines [ show [ a ! (i,j) | j <- [lj .. uj] ]
-                            | i <- [li .. ui ]
-                            ]
+   show (ShowM a) =
+           unlines [ unwords [ take (w - length x) (repeat ' ') ++ x
+                             | (w,x) <- ws `zip` xs
+                             ]
+                   | xs <- xss
+                   ]
       where
          ((li,lj),(ui,uj)) =  bounds a
+         xss = [ [ show (a ! (i,j)) | j <- [lj .. uj] ]
+               | i <- [li .. ui ]
+               ]
+         ws = map maximum (map (map length) (transpose xss))
 
 data ShowV a = ShowV (V a)
 instance Show a => Show (ShowV a) where
