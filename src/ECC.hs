@@ -156,6 +156,13 @@ txRx_EbN0 ebnoDB ecc = ecc { txRx = \ xs -> do
 rateOf :: ECC -> Rational
 rateOf ecc = fromIntegral (message_length ecc) / fromIntegral (codeword_length ecc)
 
+hard :: (Num a, Ord a) => a -> Bit
+hard = setBit . (> 0)
+
+soft :: (Num a) => Bit -> a
+soft 0 = -1
+soft 1 = 1
+
 {-
 main :: IO ()
 main = do

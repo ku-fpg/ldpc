@@ -20,8 +20,9 @@ library
                 ECC,
                 Data.Bit,
                 Manifold.Array,
-                Haskell.Array.Sig,
-                Haskell.Array.Encode
+                Haskell.Array.Decode,
+                Haskell.Array.Encode,
+                Haskell.Array.Sig
   
 --  Noise, Codes.ICFP_Paper, Codes.Wikipedia,
 --                       Data.Binary.Bytewise,

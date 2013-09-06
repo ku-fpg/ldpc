@@ -16,6 +16,9 @@ getBit :: Bit -> Bool
 getBit Zero = False
 getBit One  = True
 
+sumBits :: [Bit] -> Int
+sumBits bs = length [ () | One <- bs ]
+
 instance Show Bit where
     show Zero = "0"
     show One  = "1"

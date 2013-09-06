@@ -2,17 +2,27 @@ module Haskell.Array.Sig where
 
 import Data.Array
 
-type V a = [a]
+type V a = Array Int a
 type M a = Array (Int,Int) a
 
 rowM :: V a -> M a
-rowM vs = listArray ((0,0),(0,length vs - 1)) vs
+rowM a = ixmap ((0,li),(0,ul)) (\ (_,i) -> i) a
+   where
+         (li,ul) = bounds a
 
 columnM :: V a -> M a
-columnM vs = listArray ((0,0),(length vs - 1,0)) vs
+columnM a = ixmap ((li,0),(ul,0)) (\ (i,_) -> i) a
+   where
+         (li,ul) = bounds a
+
+rows :: M a -> Int
+rows = (+ 1) . fst . snd . bounds
+
+columns :: M a -> Int
+columns = (+ 1) . snd . snd . bounds
 
 getRowM :: M a -> V a
-getRowM a = elems a
+getRowM a = vector $ elems a
   where
     ((0,0),(0,_)) = bounds a
 
@@ -34,6 +44,17 @@ matMult x y =  array resultBounds
 matrix :: [[a]] -> M a
 matrix xs = listArray ((0,0),(length xs - 1,length (head xs) - 1)) $ concat xs
 
+vector :: [a] -> V a
+vector xs = listArray (0,length xs - 1) xs
+
+fromVector :: V a -> [a]
+fromVector = elems
+
+-- WRONG: TO FIX
+fromMatrix :: M a -> [[a]]
+fromMatrix = (:[]) . elems
+
+
 data ShowM a = ShowM (M a)
 
 instance Show a => Show (ShowM a) where
@@ -43,6 +64,11 @@ instance Show a => Show (ShowM a) where
       where
          ((li,lj),(ui,uj)) =  bounds a
 
+data ShowV a = ShowV (V a)
+instance Show a => Show (ShowV a) where
+   show (ShowV a) = show [ a ! j | j <- [lj .. uj] ]
+      where
+         (lj,uj) =  bounds a
 -- Trick: use ShowM (<some array>) to get better Showing of something.
 
 
