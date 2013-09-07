@@ -35,7 +35,7 @@ data ECC = ECC
      { encode          :: [Bit]       	-> EccM [Bit]
      , txRx            :: [Bit]         -> EccM [Double]
      , decode          :: [Double] 	-> EccM [Bit]         -- ^ (extra info,result)
-     , announce        :: Int -> Double -> IO ()              -- ^ give verbal result, passing errors and (computed) BER.
+     , announce        :: Int -> Double -> IO Bool            -- ^ give verbal result, passing errors and (computed) BER.
      , message_length  :: MessageSize   -- length of v
      , codeword_length :: CodewordSize  -- length of w
      , verbose         :: Int           -- standard 0 | 1 | 2 | 3 scale:
@@ -45,8 +45,9 @@ data ECC = ECC
      }
 
 -- Takes the starting seed, the number of messages, and the encode/decode pair (inside ECC),
--- and returns the BER.
-runECC :: Maybe Word32 -> Integer -> ECC -> IO Double
+-- and returns the BER, and the total error count.
+--
+runECC :: Maybe Word32 -> Integer -> ECC -> IO (Integer,Double)
 runECC seed count ecc = do
   gen :: GenIO <- case seed of
                     Just s -> initialize (U.singleton s)
@@ -56,13 +57,13 @@ runECC seed count ecc = do
 
   let run !n !errs !ber
        | n == count = do
-        debug 2 $ "done, BER = " ++ show ber
-        return ber
+        debug 2 $ "done, BER = " ++ show ber ++ ", errors = " ++ show errs
+        return (errs,ber)
 
        | otherwise = do
         debug 2 $ "starting message " ++ show n
 
-        mess0  <- liftM (fmap setBit) $ sequence [ uniform gen | _ <- [1..message_length ecc]]
+        mess0  <- liftM (fmap mkBit) $ sequence [ uniform gen | _ <- [1..message_length ecc]]
         debug 2 $ "generated message " ++ show n
         debug 3 $ show mess0
 
@@ -82,7 +83,7 @@ runECC seed count ecc = do
         let bitErrorCount = length [ () | (b,a) <- zip mess0 mess1, a /= b ]
         debug 1 $ show bitErrorCount ++ " bit errors in message " ++ show n
 
-        let errs' = errs + bitErrorCount
+        let errs' = errs + fromIntegral bitErrorCount
         let ber' = fromIntegral errs' / (fromIntegral (message_length ecc) * (fromIntegral (n + 1)))
 
         announce ecc bitErrorCount ber'
@@ -138,8 +139,9 @@ defaultECC :: ECC
 defaultECC = ECC
         { encode   = return
         , txRx     = return . fmap (\ x -> if getBit x then 1 else -1)
-        , announce = \ _ ber -> putStrLn $ "BER: " ++ show ber
         , decode   = return . fmap mkBit . fmap (>= 0)
+        , announce = \ _ ber -> do putStrLn $ "BER: " ++ show ber
+                                   return False
         , message_length  = 16
         , codeword_length = 16
         , verbose = 0
@@ -148,21 +150,45 @@ defaultECC = ECC
 txRx_EbN0 :: Double -> ECC -> ECC -- [Bit] -> EccM [Double]
 txRx_EbN0 ebnoDB ecc = ecc { txRx = \ xs -> do
         rs :: [Double]  <- sequence [ standardEccM | _ <- [1..length xs] ]
-        return $ zipWith (+) (fmap (* sqrt var) rs) $ fmap (\ x -> if getBit x then 1 else -1) $ xs }
-  where
+        return $ map (* lc)
+               $ zipWith (+) (fmap (* sqrt sigma2) rs)
+                             (fmap (* sqrt ec)
+                                $ fmap (\ x -> if getBit x then 1 else -1)
+                                $ xs) }
+                          where
          rate = rateOf ecc
-         var = 1/(2 * fromRational rate * (10 **(ebnoDB/10)))
+         sigma2 = ((1/10) ** (ebnoDB/10)) / 2
+         ec = fromRational rate
+         lc = 2 * sqrt ec / sigma2
+
+{-
+.zipWith (+)
+                        (fmap (* sqrt ec)     $ fmap antip sample)
+--                      (fmap antip sample)
+                        (fmap (* sqrt sigma2) $ matrix xs)
+-}
 
 rateOf :: ECC -> Rational
 rateOf ecc = fromIntegral (message_length ecc) / fromIntegral (codeword_length ecc)
 
 hard :: (Num a, Ord a) => a -> Bit
-hard = setBit . (> 0)
+hard = mkBit . (> 0)
 
 soft :: (Num a) => Bit -> a
 soft 0 = -1
 soft 1 = 1
 
+-- stop after this number of bit errors have been found
+stopAfter :: Int -> ECC -> IO ECC
+stopAfter n ecc = do
+        var <- newMVar n
+        return $ ecc { announce = \ count ber -> do
+                                b <- announce ecc count ber
+                                c <- takeMVar var
+                                let c' = c - count
+                                putMVar var c'
+                                return $ b || c <= 0
+                     }
 {-
 main :: IO ()
 main = do
