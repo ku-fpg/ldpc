@@ -95,13 +95,13 @@ runECC seed count ecc = do
 {-
 -- Utilties for building the ECC
 generateList :: (PrimMonad m) => Gen (PrimState m) -> Int -> m [Bit]
-generateList gen sz = liftM (fmap setBit) $ sequence [ uniform gen | _ <- [1..sz]]
+generateList gen sz = liftM (fmap mkBit) $ sequence [ uniform gen | _ <- [1..sz]]
 
 encodeId :: (Monad m) => v Bit -> m (v Bit)
 encodeId = return
 
 decodeId :: (Monad m, Functor v, Ord d, Num d) => v d -> m ((),v Bit)
-decodeId = return . (,) () . fmap setBit . fmap (>= 0)
+decodeId = return . (,) () . fmap mkBit . fmap (>= 0)
 
 checkList :: (Monad m) => [Bit] -> [Bit] -> m Int
 checkList xs ys
@@ -138,8 +138,8 @@ defaultECC :: ECC
 defaultECC = ECC
         { encode   = return
         , txRx     = return . fmap (\ x -> if getBit x then 1 else -1)
-        , decode   = return . fmap setBit . fmap (>= 0)
         , announce = \ _ ber -> putStrLn $ "BER: " ++ show ber
+        , decode   = return . fmap mkBit . fmap (>= 0)
         , message_length  = 16
         , codeword_length = 16
         , verbose = 0

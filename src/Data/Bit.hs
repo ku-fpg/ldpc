@@ -1,16 +1,17 @@
 module Data.Bit where
 
-import System.Random.MWC
+--import System.Random.MWC
 import Control.Monad
+import Data.Bits
 
 data Bit = Zero | One
         deriving (Eq, Ord)
 
 type Word1 = Bit
 
-setBit :: Bool -> Bit
-setBit False = Zero
-setBit True  = One
+mkBit :: Bool -> Bit
+mkBit False = Zero
+mkBit True  = One
 
 getBit :: Bit -> Bool
 getBit Zero = False
@@ -30,7 +31,7 @@ instance Read Bit where
                        _ -> []
 
 instance Num Bit where
-    a + b = setBit $ a /= b        -- XOR
+    a + b = mkBit $ a /= b        -- XOR
     One * One  = One            -- OR
     _   * _    = Zero
     a   - Zero = a
@@ -44,8 +45,30 @@ instance Num Bit where
     fromInteger 1 = One
     fromInteger n = error $ show n ++ " :: Bit is not 0 or 1"
 
+instance Bits Bit where
+    (.&.) = (*)
+    Zero .|. Zero = Zero
+    _   .|.  _    = One
+    xor = (+)
+    complement Zero = One
+    complement One = Zero
+    shift a 0 = a
+    shift _ _ = 0
+    rotate a _ = a
+    bit 0 = 1
+    bit _ = 0
+    bitSize _ = 1
+    testBit b 0 = getBit b
+    isSigned _ = True
+    popCount Zero = 0
+    popCount One = 1
+
+
+{-
+-- To move
 instance Variate Bit where
     uniform  = liftM setBit . uniform
     uniformR (a,b) = liftM setBit . uniformR (getBit a,getBit b)
     {-# INLINE uniform  #-}
     {-# INLINE uniformR #-}
+-}
