@@ -2,6 +2,7 @@ module Haskell.Array.Sig where
 
 import Data.Array
 import Data.List
+import Numeric
 
 type V a = Array Int a
 type M a = Array (Int,Int) a
@@ -53,7 +54,10 @@ fromVector = elems
 
 -- WRONG: TO FIX
 fromMatrix :: M a -> [[a]]
-fromMatrix = (:[]) . elems
+fromMatrix a =  [ [ a ! (i,j) | j <- [lj .. uj] ]
+                | i <- [li .. ui ]
+                ]
+  where ((li,lj),(ui,uj)) =  bounds a
 
 
 data ShowM a = ShowM (M a)
@@ -79,4 +83,18 @@ instance Show a => Show (ShowV a) where
          (lj,uj) =  bounds a
 -- Trick: use ShowM (<some array>) to get better Showing of something.
 
+data E a = E a
+
+instance RealFloat a => Show (E a) where
+   showsPrec _ (E a) = showEFloat (Just 2) a
+
+data F a = F a
+
+instance RealFloat a => Show (F a) where
+   showsPrec _ (F a) = showFFloat (Just 2) a
+
+data S = S String
+
+instance Show S where
+  show (S str) = str
 
