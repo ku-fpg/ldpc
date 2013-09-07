@@ -42,10 +42,12 @@ library
 
 --                primitive ==0.5.*, mtl ==2.1.*, array ==0.4.*, sized-types ==0.4.*, directory ==1.2.*, bzlib ==0.5.*, bytestring ==0.10.*, binary ==0.7.*, ghc-prim ==0.3.*, repa ==3.2.*, vector == 0.10.*
   hs-source-dirs:      src
+  Ghc-options: -O2
 
 executable ldpc_under_test
   build-depends:       base ==4.6.*, ldpc==0.1.0.0
   main-is: src/Main.hs
+  Ghc-options: -O2
 
 --executable haskell_mutation
 --  build-depends:       base ==4.6.*, ldpc==0.1.0.0
