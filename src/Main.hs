@@ -10,7 +10,7 @@ pickECC :: [String] -> ECC
 --pickECC "array-moon:200" = A.moon_array_ecc 10
 
 pickECC ["array","moon",ns] | all isDigit ns = A.moon_array_ecc (read ns)
---pickECC ["min_array","moon","200"] = A.min_moon_array_ecc 200
+pickECC ["min_array","moon",ns] | all isDigit ns = A.min_moon_array_ecc (read ns)
 pickECC ["bpsk"]               = defaultECC
 
 
@@ -22,9 +22,11 @@ splitCodename = words . map (\ c -> if c == '/' then ' ' else c)
 main :: IO ()
 main = do
         print "Hello"
-        let dbs = [0..6] --- [0..8]
-        let codes = -- ["bpsk"] -- ++
-                    [ "array/moon/"++ show n | n <- [128,256] ] --  0 : take 8 (iterate (*2) 1) ]
+        let dbs = [2] --- [0..8]
+        let codes = ["bpsk"] ++
+                    [ "array/moon/"++ show n | n <- [16] ] ++
+                    [ "min_array/moon/"++ show n | n <- [16] ] ++
+                    []
         xs <- sequence
                [ sequence
                   [ do let ecc0 = pickECC (splitCodename nm)
@@ -44,7 +46,7 @@ main = do
                                else do bers <- loop (n * 2) (c  + c0)
                                        return $ ber : bers
                        print (nm,db)
-                       bers <- loop 10000 0
+                       bers <- loop 1000 0
                        print bers
                        let muls = take (length bers) (iterate (*2) 1) :: [Double]
                        print muls

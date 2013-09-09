@@ -38,11 +38,11 @@ ldpc maxIterations a orig_lam = fmap hard $ loop 0 ne orig_lam
 
         lam' = accum (+) orig_lam [ (n,a) | ((_,n),a) <- assocs ne' ]
 
-decoder' :: Int -> M Bit -> V Double -> V Bit
-decoder' = ldpc'
+min_decoder :: Int -> M Bit -> V Double -> V Bit
+min_decoder = min_ldpc
 
-ldpc' :: (Floating d, Ord d) => Int -> M Bit -> V d -> V Bit
-ldpc' maxIterations a orig_lam = fmap hard $ loop 0 ne orig_lam
+min_ldpc :: (Floating d, Ord d) => Int -> M Bit -> V d -> V Bit
+min_ldpc maxIterations a orig_lam = fmap hard $ loop 0 ne orig_lam
   where
     ne = fmap (const 0) a
 

@@ -52,7 +52,6 @@ vector xs = listArray (0,length xs - 1) xs
 fromVector :: V a -> [a]
 fromVector = elems
 
--- WRONG: TO FIX
 fromMatrix :: M a -> [[a]]
 fromMatrix a =  [ [ a ! (i,j) | j <- [lj .. uj] ]
                 | i <- [li .. ui ]
