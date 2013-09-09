@@ -10,11 +10,13 @@ import ECC
 decoder :: Int -> M Bit -> V Double -> V Bit
 decoder = ldpc
 
-ldpc :: (Floating d, Ord d) => Int -> M Bit -> V d -> V Bit
-ldpc maxIterations a orig_lam = fmap hard $ loop 0 ne orig_lam
+ldpc :: forall d. (Floating d, Ord d) => Int -> M Bit -> V d -> V Bit
+ldpc maxIterations a orig_lam = fmap hard $ loop 0 orig_ne orig_lam
   where
-    ne = fmap (const 0) a
+    orig_ne :: M d
+    orig_ne = fmap (const 0) a
 
+    loop :: Int -> M d -> V d -> V d
     loop !n ne lam
         | null [ () | 1 <- elems ans ] = lam
         | n >= maxIterations           = orig_lam
@@ -26,6 +28,7 @@ ldpc maxIterations a orig_lam = fmap hard $ loop 0 ne orig_lam
         ans :: M Bit
         ans = a `mm` columnM c_hat
 
+        ne' :: M d
         ne' = ne // [ ((m,n), -2 * atanh (product
                          [ tanh (- ((lam ! j - ne ! (m,j)) / 2))
                          | j <- indices lam
@@ -36,16 +39,19 @@ ldpc maxIterations a orig_lam = fmap hard $ loop 0 ne orig_lam
                     , a ! (m,n) == 1
                     ]
 
+        lam' :: V d
         lam' = accum (+) orig_lam [ (n,a) | ((_,n),a) <- assocs ne' ]
 
 min_decoder :: Int -> M Bit -> V Double -> V Bit
 min_decoder = min_ldpc
 
-min_ldpc :: (Floating d, Ord d) => Int -> M Bit -> V d -> V Bit
-min_ldpc maxIterations a orig_lam = fmap hard $ loop 0 ne orig_lam
+min_ldpc :: forall d . (Floating d, Ord d) => Int -> M Bit -> V d -> V Bit
+min_ldpc maxIterations a orig_lam = fmap hard $ loop 0 orig_ne orig_lam
   where
-    ne = fmap (const 0) a
+    orig_ne :: M d
+    orig_ne = fmap (const 0) a
 
+    loop :: Int -> M d -> V d -> V d
     loop !n ne lam
         | null [ () | 1 <- elems ans ] = lam
         | n >= maxIterations           = orig_lam
@@ -57,6 +63,7 @@ min_ldpc maxIterations a orig_lam = fmap hard $ loop 0 ne orig_lam
         ans :: M Bit
         ans = a `mm` columnM c_hat
 
+        ne' :: M d
         ne' = ne // [ ((m,n), -0.75 * foldr1 min'
                          [ - (lam ! j - ne ! (m,j))
                          | j <- indices lam
@@ -67,6 +74,7 @@ min_ldpc maxIterations a orig_lam = fmap hard $ loop 0 ne orig_lam
                     , a ! (m,n) == 1
                     ]
 
+        lam' :: V d
         lam' = accum (+) orig_lam [ (n,a) | ((_,n),a) <- assocs ne' ]
 
 min' :: (Num a, Ord a) => a -> a -> a
