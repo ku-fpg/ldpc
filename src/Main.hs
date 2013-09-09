@@ -46,7 +46,7 @@ main = do
                                else do bers <- loop (n * 2) (c  + c0)
                                        return $ ber : bers
                        print (nm,db)
-                       bers <- loop 1000 0
+                       bers <- loop 10000 0
                        print bers
                        let muls = take (length bers) (iterate (*2) 1) :: [Double]
                        print muls
