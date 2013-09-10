@@ -18,6 +18,7 @@ library
   exposed-modules:
                 Codes.MoonLDPC,
                 ECC,
+                Stats,
                 Data.Bit,
                 Manifold.Array,
                 Haskell.Array.Decode,
@@ -38,6 +39,7 @@ library
                 base            == 4.6.*, 
                 mtl             == 2.1.*,
                 mwc-random      == 0.12.*, 
+                statistics      == 0.10.*,
                 vector          == 0.10.*
 
 --                primitive ==0.5.*, mtl ==2.1.*, array ==0.4.*, sized-types ==0.4.*, directory ==1.2.*, bzlib ==0.5.*, bytestring ==0.10.*, binary ==0.7.*, ghc-prim ==0.3.*, repa ==3.2.*, vector == 0.10.*
