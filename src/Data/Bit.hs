@@ -45,6 +45,15 @@ instance Num Bit where
     fromInteger 1 = One
     fromInteger n = error $ show n ++ " :: Bit is not 0 or 1"
 
+instance Real Bit where
+
+instance Enum Bit where
+
+instance Integral Bit where
+  toInteger 0 = 0
+  toInteger 1 = 1
+
+
 instance Bits Bit where
     (.&.) = (*)
     Zero .|. Zero = Zero
