@@ -18,7 +18,7 @@ ldpc maxIterations a orig_lam = fmap hard $ loop 0 orig_ne orig_lam
 
     loop :: Int -> M d -> V d -> V d
     loop !n ne lam
-        | null [ () | 1 <- elems ans ] = lam
+        | all (== 0) (elems ans)       = lam
         | n >= maxIterations           = orig_lam
         | otherwise                    = loop (n+1) ne' lam'
       where
@@ -53,7 +53,7 @@ min_ldpc maxIterations a orig_lam = fmap hard $ loop 0 orig_ne orig_lam
 
     loop :: Int -> M d -> V d -> V d
     loop !n ne lam
-        | null [ () | 1 <- elems ans ] = lam
+        | all (== 0) (elems ans)       = lam
         | n >= maxIterations           = orig_lam
         | otherwise                    = loop (n+1) ne' lam'
       where

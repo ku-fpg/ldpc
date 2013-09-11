@@ -31,8 +31,8 @@ instance Read Bit where
                        _ -> []
 
 instance Num Bit where
-    a + b = mkBit $ a /= b        -- XOR
-    One * One  = One            -- OR
+    a + b = mkBit (a /= b)        -- XOR
+    One * One  = One              -- AND
     _   * _    = Zero
     a   - Zero = a
     Zero - One = One
