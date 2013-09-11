@@ -17,6 +17,7 @@ cabal-version:       >=1.8
 library
   exposed-modules:
                 Codes.MoonLDPC,
+                Data.Alist,
                 ECC,
                 Stats,
                 Data.Bit,

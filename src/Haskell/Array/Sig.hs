@@ -4,29 +4,37 @@ import Data.Array
 import Data.List
 import Numeric
 
-type V a = Array Int a
-type M a = Array (Int,Int) a
+type V a = Array Int a          -- We assume that we index (1,length array)
+type M a = Array (Int,Int) a    -- We assume that we index ((1,1),(length A,length B))
 
 rowM :: V a -> M a
-rowM a = ixmap ((0,li),(0,ul)) (\ (_,i) -> i) a
+rowM a = ixmap ((1,li),(1,ul)) (\ (_,i) -> i) a
    where
          (li,ul) = bounds a
 
 columnM :: V a -> M a
-columnM a = ixmap ((li,0),(ul,0)) (\ (i,_) -> i) a
+columnM a = ixmap ((li,1),(ul,1)) (\ (i,_) -> i) a
    where
          (li,ul) = bounds a
 
 rows :: M a -> Int
-rows = (+ 1) . fst . snd . bounds
+rows = fst . snd . bounds
 
 columns :: M a -> Int
-columns = (+ 1) . snd . snd . bounds
+columns = snd . snd . bounds
 
 getRowM :: M a -> V a
 getRowM a = vector $ elems a
   where
-    ((0,0),(0,_)) = bounds a
+    ((1,1),(1,_)) = bounds a
+
+getColumnM :: M a -> V a
+getColumnM a = vector $ elems a
+  where
+    ((1,1),(_,1)) = bounds a
+
+transposeM :: M a -> M a
+transposeM m = array ((1,1),(columns m,rows m)) [ ((y,x),v) | ((x,y),v) <- assocs m ]
 
 mm :: Num a => M a -> M a -> M a
 mm = matMult
@@ -44,10 +52,10 @@ matMult x y =  array resultBounds
                 | otherwise             = error "matMult: incompatible bounds"
 
 matrix :: [[a]] -> M a
-matrix xs = listArray ((0,0),(length xs - 1,length (head xs) - 1)) $ concat xs
+matrix xs = listArray ((1,1),(length xs,length (head xs))) $ concat xs
 
 vector :: [a] -> V a
-vector xs = listArray (0,length xs - 1) xs
+vector xs = listArray (1,length xs) xs
 
 fromVector :: V a -> [a]
 fromVector = elems
@@ -97,3 +105,16 @@ data S = S String
 instance Show S where
   show (S str) = str
 
+identity :: Num a => Int -> M a
+identity n = matrix [ [ if x == y then 1 else 0
+                      | x <- [1..n]
+                      ] | y <- [1..n]
+                    ]
+
+beside :: M a -> M a -> M a
+beside m1 m2 = matrix $ transpose (transpose (fromMatrix m1) ++ transpose (fromMatrix m2))
+
+splice :: ((Int,Int),(Int,Int)) -> M a -> M a
+splice bds m = array ((1,1),(1 + ui - li,1 + uj - lj)) [ ((1 + i-li,1 + j - lj),v) | ((i,j),v) <- assocs m, bds `inRange` (i,j) ]
+  where
+          ((li,lj),(ui,uj)) = bds

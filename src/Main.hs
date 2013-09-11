@@ -7,13 +7,12 @@ import qualified Manifold.Array as A
 import System.IO
 import Stats
 
-pickECC :: [String] -> ECC
+pickECC :: [String] -> IO ECC
 --pickECC "array-moon:200" = A.moon_array_ecc 10
 
-pickECC ["array","moon",ns] | all isDigit ns = A.moon_array_ecc (read ns)
-pickECC ["min_array","moon",ns] | all isDigit ns = A.min_moon_array_ecc (read ns)
-pickECC ["bpsk"]               = defaultECC
-
+pickECC ["array",code,ns] | all isDigit ns = A.array_ecc' code (read ns)
+--pickECC ["min_array","moon",ns] | all isDigit ns = A.min_moon_array_ecc (read ns)
+pickECC ["bpsk"]               = return defaultECC
 
 usage = "ldpc <messages> <code1> <code2> <EbN0_1> <EbN0_2> <EbN0_3> <EbN0_4> .."
 
@@ -23,14 +22,14 @@ splitCodename = words . map (\ c -> if c == '/' then ' ' else c)
 main :: IO ()
 main = do
         print "Hello"
-        let dbs = [8] --- [0..8]
+        let dbs = [0] --- [0..8]
         let codes = ["bpsk"] ++
-                    [ "array/moon/"++ show n | n <- [16] ] ++
-                    [ "min_array/moon/"++ show n | n <- [16] ] ++
+                    [ "array/moon.7.13/"++ show n | n <- [16] ] ++
+--                    [ "min_array/moon/"++ show n | n <- [16] ] ++
                     []
         xs <- sequence
                [ sequence
-                  [ do let ecc0 = pickECC (splitCodename nm)
+                  [ do ecc0 <- pickECC (splitCodename nm)
                        let ecc1 = txRx_EbN0 db ecc0
                        let ecc2 = ecc1 { verbose = 0 , announce = \ n _ ->
                                                                 if n == 0 then return False
