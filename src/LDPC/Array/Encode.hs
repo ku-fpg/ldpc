@@ -1,6 +1,6 @@
 module LDPC.Array.Encode where
 
-import LDPC.Array.Sig
+import Data.Array.Matrix
 import Data.Bit
 
 encoder :: M Bit -> V Bit -> V Bit

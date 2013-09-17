@@ -2,7 +2,7 @@
 
 module LDPC.Array.Decode where
 
-import LDPC.Array.Sig
+import Data.Array.Matrix
 import Data.Bit
 import Data.Array
 import ECC

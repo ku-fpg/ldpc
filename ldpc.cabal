@@ -20,12 +20,13 @@ library
                 Data.Alist,
                 ECC,
                 Stats,
+                Data.Array.Matrix,
                 Data.Bit,
                 Data.BitMatrix.Sparse,
                 Manifold.Array,
                 LDPC.Array.Decode,
-                LDPC.Array.Encode,
-                LDPC.Array.Sig
+                LDPC.Array.Encode
+
   
 --  Noise, Codes.ICFP_Paper, Codes.Wikipedia,
 --                       Data.Binary.Bytewise,

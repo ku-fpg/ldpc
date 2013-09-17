@@ -2,7 +2,7 @@
 module Manifold.Array where
 
 import Data.Bit
-import LDPC.Array.Sig as S
+import Data.Array.Matrix as S
 import Data.Array
 import qualified LDPC.Array.Encode as E
 import qualified LDPC.Array.Decode as D

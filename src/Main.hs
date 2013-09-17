@@ -1,7 +1,7 @@
 module Main where
 
 import ECC
-import LDPC.Array.Sig
+import Data.Array.Matrix
 import Data.Char
 import qualified Manifold.Array as A
 import System.IO

@@ -1,4 +1,4 @@
-module LDPC.Array.Sig where
+module Data.Array.Matrix where
 
 import Data.Array
 import Data.List
