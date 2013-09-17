@@ -22,10 +22,10 @@ splitCodename = words . map (\ c -> if c == '/' then ' ' else c)
 main :: IO ()
 main = do
         print "Hello"
-        let dbs = [0,2,4] --- [0..8]
+        let dbs = [8] -- 0,2,4,6] --- [0..8]
         let codes = ["bpsk"] ++
 --                    [ "array/moon.7.13/"++ show n | n <- [16] ] ++
-                    [ "array/moon.7.13/"++ show n | n <- [16] ] ++
+                    [ "array/moon.7.13/"++ show n | n <- [128] ] ++
 --                    [ "min_array/moon/"++ show n | n <- [16] ] ++
                     []
         xs <- sequence
@@ -40,14 +40,14 @@ main = do
 --                       ecc3 <- stopAfter 1000 ecc2
                        let loop n c = do
                              print ("loop",c,n)
-                             res <- sequence [ runECC Nothing (n * 1000) ecc2
+                             res <- sequence [ runECC Nothing 1000 ecc2
                                              | _ <- [1..n]
                                              ]
 
 --                                 (c0,ber) <- runECC Nothing n ecc2
 --                             print ("returned",c0,ber)
                              let c' = sum (map fst res) + c
-                             if c' > 1000
+                             if c' > 100
                                then return (map snd res)
                                else do bers <- loop (n * 2) c'
                                        return $ map snd res ++ bers
