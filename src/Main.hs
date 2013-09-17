@@ -22,8 +22,9 @@ splitCodename = words . map (\ c -> if c == '/' then ' ' else c)
 main :: IO ()
 main = do
         print "Hello"
-        let dbs = [0] --- [0..8]
+        let dbs = [0,2,4] --- [0..8]
         let codes = ["bpsk"] ++
+--                    [ "array/moon.7.13/"++ show n | n <- [16] ] ++
                     [ "array/moon.7.13/"++ show n | n <- [16] ] ++
 --                    [ "min_array/moon/"++ show n | n <- [16] ] ++
                     []
