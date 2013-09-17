@@ -1,6 +1,6 @@
-module Haskell.Array.Encode where
+module LDPC.Array.Encode where
 
-import Haskell.Array.Sig
+import LDPC.Array.Sig
 import Data.Bit
 
 encoder :: M Bit -> V Bit -> V Bit

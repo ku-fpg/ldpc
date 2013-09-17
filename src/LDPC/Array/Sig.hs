@@ -1,4 +1,4 @@
-module Haskell.Array.Sig where
+module LDPC.Array.Sig where
 
 import Data.Array
 import Data.List

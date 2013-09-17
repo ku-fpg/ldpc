@@ -2,10 +2,10 @@
 module Manifold.Array where
 
 import Data.Bit
-import Haskell.Array.Sig as S
+import LDPC.Array.Sig as S
 import Data.Array
-import qualified Haskell.Array.Encode as E
-import qualified Haskell.Array.Decode as D
+import qualified LDPC.Array.Encode as E
+import qualified LDPC.Array.Decode as D
 import Data.BitMatrix.Sparse
 
 import Data.Alist

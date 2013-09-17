@@ -23,9 +23,9 @@ library
                 Data.Bit,
                 Data.BitMatrix.Sparse,
                 Manifold.Array,
-                Haskell.Array.Decode,
-                Haskell.Array.Encode,
-                Haskell.Array.Sig
+                LDPC.Array.Decode,
+                LDPC.Array.Encode,
+                LDPC.Array.Sig
   
 --  Noise, Codes.ICFP_Paper, Codes.Wikipedia,
 --                       Data.Binary.Bytewise,

@@ -12,7 +12,7 @@ import Codes.MoonLDPC
 
 import System.Random
 import Debug.Trace
-import Haskell.Array.Sig (S(..))
+import LDPC.Array.Sig (S(..))
 import Control.Monad.State.Lazy
 
 

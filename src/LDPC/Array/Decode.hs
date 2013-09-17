@@ -1,8 +1,8 @@
 {-# LANGUAGE BangPatterns, RankNTypes, GeneralizedNewtypeDeriving, ScopedTypeVariables #-}
 
-module Haskell.Array.Decode where
+module LDPC.Array.Decode where
 
-import Haskell.Array.Sig
+import LDPC.Array.Sig
 import Data.Bit
 import Data.Array
 import ECC

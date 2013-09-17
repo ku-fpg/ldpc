@@ -1,7 +1,7 @@
 module Main where
 
 import ECC
-import Haskell.Array.Sig
+import LDPC.Array.Sig
 import Data.Char
 import qualified Manifold.Array as A
 import System.IO
