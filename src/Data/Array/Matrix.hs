@@ -4,6 +4,8 @@ import Data.Array
 import Data.List
 import Numeric
 
+import Data.Bit
+
 type V a = Array Int a          -- We assume that we index (1,length array)
 type M a = Array (Int,Int) a    -- We assume that we index ((1,1),(length A,length B))
 
@@ -118,3 +120,88 @@ splice :: ((Int,Int),(Int,Int)) -> M a -> M a
 splice bds m = array ((1,1),(1 + ui - li,1 + uj - lj)) [ ((1 + i-li,1 + j - lj),v) | ((i,j),v) <- assocs m, bds `inRange` (i,j) ]
   where
           ((li,lj),(ui,uj)) = bds
+
+
+
+
+
+----------------------------------------
+-- these operations naively handle sparsity using an M Bit shape argument; this
+-- often requires less polymorphism than would be possible without sparsity
+
+-- a bidirectional mapping scan on each row; cf "Bidirectional fold and scan"
+-- by O'Donnell,J.T.
+-- http://www.dcs.gla.ac.uk/publications/paperdetails.cfm?id=7063
+--
+-- I implemented it differently that O'Donnell, but the semantics are almost
+-- the same (our binary operations are more restricted, allowing for less
+-- circularity -- we may revisit that decision...)
+onEachRow_mscanlr :: lr -> (lr -> a -> lr) -> (lr -> a -> rl -> a) -> (a -> rl -> rl) -> rl -> M Bit -> M a -> M a
+onEachRow_mscanlr nilLR binopLR f binopRL nilRL sh m = matrix $
+  map (snd . go nilLR) (zipWith zip (fromMatrix sh) (fromMatrix m))
+  where go lr [] = ((lr,nilRL),[])
+        go lr ((bit,x):xs) = case bit of
+          Zero -> let (p,ys) = go lr xs
+                  in  (p,x:ys)
+          One  -> let lrx = binopLR lr x
+                      ((lr',rl'),ys) = go lrx xs
+                  in ((lr',binopRL x rl'),f lr x rl':ys)
+
+-- a uniform bidirectional mapping scan on each row: both directions use the
+-- same associative operation
+onEachRow_muscanlr :: (a -> a -> a) -> a -> (a -> a -> a -> a) -> M Bit -> M a -> M a
+onEachRow_muscanlr binop nil f sh m = matrix $
+  map (snd . go nil) (zipWith zip (fromMatrix sh) (fromMatrix m))
+  where go lr [] = ((lr,nil),[])
+        go lr ((bit,x):xs) = case bit of
+          Zero -> let (p,ys) = go lr xs
+                  in  (p,x:ys)
+          One  -> let lrx = binop lr x
+                      ((lr',rl'),ys) = go lrx xs
+                  in ((lr',binop x rl'),f lr x rl':ys)
+
+-- zips each row with the second argument
+onEachRow_zipWith :: (a -> a -> a) -> V a -> M Bit -> M a -> M a
+onEachRow_zipWith f v sh m = matrix $
+  map (zipWith f' (fromVector v)) $
+  zipWith zip (fromMatrix sh) (fromMatrix m)
+  where f' v (sh,m) = case sh of
+          One  -> f v m
+          Zero -> m
+
+-- folds each column
+foldCols :: (b -> a -> b) -> V b -> M Bit -> M a -> V b
+foldCols snoc vinit sh m = vector $ zipWith (foldl snoc) (fromVector vinit) datums where
+  datums = transpose $ zipWith go (fromMatrix sh) (fromMatrix m)
+  go _ [] = []
+  go [] _ = []
+  go (bit:bits) (d:ds) = case bit of
+    Zero ->   go bits ds
+    One  -> d:go bits ds
+
+
+
+
+zipVWith :: (a -> b -> c) -> V a -> V b -> V c
+zipVWith f v1 v2 = vector $ zipWith f (fromVector v1) (fromVector v2)
+
+
+
+above :: M a -> M a -> M a
+unabove :: M a -> Maybe (M a,M a)
+unbeside :: M a -> Maybe (M a,M a)
+unbesideV :: V a -> Maybe (V a,V a)
+
+halves :: [a] -> Maybe ([a],[a])
+halves ess = case l `div` 2 of
+  0 -> Nothing
+  n -> Just $ splitAt n ess
+  where l = length ess
+
+above x y = matrix $ fromMatrix x ++ fromMatrix y
+unabove m = (\(x,y) -> (matrix x,matrix y)) `fmap` halves (fromMatrix m)
+unbeside m = (\(x,y) -> (matrix $ transpose x,matrix $ transpose y)) `fmap` halves (transpose $ fromMatrix m)
+unbesideV v = (\(x,y) -> (vector x,vector y)) `fmap` halves (fromVector v)
+
+appendV :: V a -> V a -> V a
+appendV x y = vector $ elems x ++ elems y
