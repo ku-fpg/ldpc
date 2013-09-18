@@ -1,0 +1,11 @@
+-- WW Assumption A (result variant):  abs a (rep a h) == h
+
+-- abs a (rep a h)
+                                         { unfold 'abs }
+-- \ m -> rep a h (toSparse a m)
+                                         { lam-body ; unfold 'rep }
+-- \ m -> h (frSparse a (toSparse a m))
+                                         { one-td (unfold-rule "SparseFromTo") }
+-- \ m -> h m
+                                         { eta-reduce }
+-- h

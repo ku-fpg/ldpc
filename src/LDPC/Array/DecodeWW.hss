@@ -1,0 +1,29 @@
+flatten-module
+set-pp-type Show
+
+load-as-rewrite "WWA" "WW-Ass-A.hss"
+define-rewrite "WWC" "ww-result-AssA-to-AssC WWA"
+
+consider 'loop
+
+ww-result-split [| abs d a |] [| rep d a |] WWC
+any-call (unfold 'abs <+ unfold 'rep)
+
+{ def-rhs
+  let-subst
+
+  rhs-of 'work
+  innermost (beta-reduce >>> let-subst)
+  unshadow
+  { consider let
+    { let-body
+      let-nonrec-intro 'sm' [| toSparse d a ne' |]
+      one-td (fold 'sm')
+    }
+    { rhs-of 'lam'
+      one-td (when (var 'ne') (backward (retraction [| frSparse d a |] [| toSparse d a |] (unfold-rule "SparseFromTo") )))
+      one-td (fold 'sm')
+    }
+    let-subst
+  }
+}
