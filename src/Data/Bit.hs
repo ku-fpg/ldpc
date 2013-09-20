@@ -5,7 +5,7 @@ import Control.Monad
 import Data.Bits
 
 data Bit = Zero | One
-        deriving (Eq, Ord)
+        deriving (Eq, Ord, Enum)
 
 type Word1 = Bit
 
@@ -46,12 +46,14 @@ instance Num Bit where
     fromInteger n = error $ show n ++ " :: Bit is not 0 or 1"
 
 instance Real Bit where
-
-instance Enum Bit where
+    toRational Zero = 0
+    toRational One  = 1
 
 instance Integral Bit where
-  toInteger 0 = 0
-  toInteger 1 = 1
+  toInteger Zero = 0
+  toInteger One = 1
+  quotRem x One = (x, Zero)
+  quotRem _ Zero = error "divide by zero"
 
 
 instance Bits Bit where
