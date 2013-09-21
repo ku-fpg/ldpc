@@ -76,18 +76,20 @@ unsafeAt ucrs (r,c) = binary_search (_col ucrs) rowStart rowStop c k (_zero ucrs
   where
     k = A.unsafeAt (_values ucrs)
     rowStart = A.unsafeAt (_rowStart ucrs) r
-    rowStop  = A.unsafeAt (_rowStart ucrs) (r+1)
+    rowStop  = A.unsafeAt (_rowStart ucrs) (r+1) - 1
+         -- decr b/c the array element is the index corresponding to the start
+         -- of the next row
 
 {-# INLINE binary_search #-}
 binary_search :: (IArray UArray a,Ord a) => UArray Int a -> Int -> Int -> a -> (Int -> r) -> r -> r
+-- start,stop: inclusive indices to search
 binary_search !arr !start !stop target k kfail
-  | start+1 == stop = if e == target then k mid else kfail
-  | otherwise       = case compare e target of
-    LT -> binary_search arr start   mid  target k kfail
+  | start>stop = kfail
+  | otherwise  = case compare target (A.unsafeAt arr mid) of
+    LT -> binary_search arr start   (mid-1) target k kfail
     EQ -> k mid
-    GT -> binary_search arr (mid+1) stop target k kfail
-  where e = A.unsafeAt arr mid
-        mid = (start+stop) `div` 2
+    GT -> binary_search arr (mid+1) stop    target k kfail
+  where mid = start + ((stop-start) `div` 2) -- avoids overflow
 
 
 
